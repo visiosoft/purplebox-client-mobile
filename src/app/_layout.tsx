@@ -1,18 +1,62 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
+import { useEffect } from 'react';
+import { Stack, useRouter, useSegments } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
-
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useFonts } from 'expo-font';
+import { BricolageGrotesque_700Bold, BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-grotesque';
+import {
+  PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold,
+} from '@expo-google-fonts/plus-jakarta-sans';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useAuth } from '@/store/auth';
+import { usePrefs } from '@/store/prefs';
+import { useTheme } from '@/theme/useTheme';
 
 SplashScreen.preventAutoHideAsync();
+const queryClient = new QueryClient();
 
-export default function TabLayout() {
-  const colorScheme = useColorScheme();
+function Gate() {
+  const { ready, customer } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+  const { isDark } = useTheme();
+
+  useEffect(() => {
+    if (!ready) return;
+    const inAuth = segments[0] === '(auth)';
+    if (!customer && !inAuth) router.replace('/(auth)/login');
+    else if (customer && inAuth) router.replace('/(tabs)');
+  }, [ready, customer, segments, router]);
+
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
-    </ThemeProvider>
+    <>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <Stack screenOptions={{ headerShown: false }} />
+    </>
+  );
+}
+
+export default function RootLayout() {
+  const [fontsLoaded] = useFonts({
+    BricolageGrotesque_700Bold, BricolageGrotesque_800ExtraBold,
+    PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold,
+  });
+  const ready = useAuth((s) => s.ready);
+  const hydrated = usePrefs((s) => s.hydrated);
+
+  useEffect(() => { usePrefs.getState().hydrate(); useAuth.getState().bootstrap(); }, []);
+  useEffect(() => { if (fontsLoaded && ready && hydrated) SplashScreen.hideAsync(); }, [fontsLoaded, ready, hydrated]);
+
+  if (!fontsLoaded || !ready || !hydrated) return null;
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <QueryClientProvider client={queryClient}>
+          <Gate />
+        </QueryClientProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
