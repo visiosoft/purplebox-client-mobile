@@ -20,8 +20,8 @@ export const useAuth = create<AuthState>((set) => ({
     const t = await loadToken();
     if (t) {
       try {
-        const me = await api('/customer-auth/me');
-        set({ customer: { id: me.id ?? me._id, fullName: me.fullName, phone: me.phone, email: me.email } });
+        const { customer } = await api('/customer-auth/me');
+        set({ customer });
       } catch { await saveToken(null); }
     }
     set({ ready: true });
