@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Button, Card, Screen, Text } from '@/components/ui';
 import { Page, StatusChip, invoiceTone } from '@/components/bits';
 import { storageApi } from '@/api/storage';
+import { bookingApi } from '@/api/booking';
 import { useAuth } from '@/store/auth';
 import { useTheme } from '@/theme/useTheme';
 import { aed, daysUntil, monthlyRate, shortDate } from '@/lib/format';
@@ -13,6 +14,7 @@ export default function HomeTab() {
   const { c } = useTheme();
   const name = useAuth((s) => s.customer?.fullName?.split(' ')[0]);
   const q = useQuery({ queryKey: ['home'], queryFn: storageApi.home });
+  const pending = useQuery({ queryKey: ['booking-current'], queryFn: bookingApi.current });
   const home = q.data;
   const contract = home?.primaryContract;
   const unit = contract?.units[0];
@@ -23,6 +25,19 @@ export default function HomeTab() {
     <Screen style={{ paddingTop: 56 }}>
       <Page loading={q.isLoading} error={q.error?.message} refreshing={q.isRefetching} onRefresh={() => q.refetch()}>
         <Text variant="h1">Hi{name && name !== '+' ? `, ${name}` : ''}</Text>
+
+        {pending.data ? (
+          <Card style={{ gap: 10, borderWidth: 1, borderColor: c.br }}>
+            <Text variant="h3">Finish your booking</Text>
+            <Text color="ink2">
+              {pending.data.state === 'ready_to_sign' ? `Unit ${pending.data.unit.unitNumber} is paid — sign your agreement to activate it.`
+                : pending.data.state === 'held' ? `Unit ${pending.data.unit.unitNumber} is held for you. Complete payment to keep it.`
+                : `We're finishing up unit ${pending.data.unit.unitNumber}.`}
+            </Text>
+            <Button title={pending.data.state === 'held' ? 'Continue to payment' : 'Continue'}
+              onPress={() => router.push({ pathname: pending.data!.state === 'held' ? '/book/review' : '/book/status', params: { id: pending.data!.bookingId } })} />
+          </Card>
+        ) : null}
 
         {contract && unit ? (
           <View style={{ backgroundColor: c.br, borderRadius: 24, padding: 20, gap: 14 }}>
@@ -43,8 +58,9 @@ export default function HomeTab() {
         ) : !q.isLoading ? (
           <Card style={{ gap: 10 }}>
             <Text variant="h3">No storage unit yet</Text>
-            <Text color="ink2">Already renting with us? Link your agreement to see your unit, invoices and documents.</Text>
-            <Button title="Link my unit" onPress={() => router.push('/link-unit')} />
+            <Text color="ink2">Book a unit in a few minutes, or link an agreement you already have with us.</Text>
+            <Button title="Book a unit" onPress={() => router.push('/book')} />
+            <Button title="Link my existing unit" variant="soft" onPress={() => router.push('/link-unit')} />
           </Card>
         ) : null}
 

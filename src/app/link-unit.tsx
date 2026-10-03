@@ -32,7 +32,7 @@ export default function LinkUnit() {
         <>
           <Input label="Agreement number" autoCapitalize="characters" value={contractNo} onChangeText={setContractNo} />
           <Button title="Send code" loading={busy} disabled={!contractNo.trim()}
-            onPress={() => run(async () => { const r = await storageApi.linkRequest(contractNo.trim()); setMasked(r.maskedPhone); })} />
+            onPress={() => run(async () => { const r = await storageApi.linkRequest(contractNo.trim()); setMasked(r.maskedPhone); if (r.code) setCode(r.code); })} />
         </>
       ) : (
         <>

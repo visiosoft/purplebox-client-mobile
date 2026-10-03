@@ -22,7 +22,7 @@ export async function saveToken(t: string | null) {
 }
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) { super(message); }
+  constructor(public status: number, message: string, public data: any = {}) { super(message); }
 }
 
 export async function api<T = any>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
@@ -40,7 +40,7 @@ export async function api<T = any>(path: string, opts: { method?: string; body?:
     });
     const data = await res.json().catch(() => ({}));
     if (res.status === 401 && token) onUnauthorized?.();
-    if (!res.ok) throw new ApiError(res.status, data?.error ?? `Request failed (${res.status})`);
+    if (!res.ok) throw new ApiError(res.status, data?.error ?? `Request failed (${res.status})`, data);
     return data as T;
   } catch (e: any) {
     if (e?.name === 'AbortError') throw new ApiError(0, 'Request timed out');

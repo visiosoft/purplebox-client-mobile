@@ -27,7 +27,7 @@ export default function Login() {
           <>
             <Input label="Mobile number" placeholder="+971 5X XXX XXXX" keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
             <Button title="Send code" loading={busy} disabled={phone.replace(/\D/g, '').length < 9}
-              onPress={() => run(async () => { await requestOtp(phone.trim()); setSent(true); })} />
+              onPress={() => run(async () => { const dev = await requestOtp(phone.trim()); if (dev) setCode(dev); setSent(true); })} />
           </>
         ) : (
           <>

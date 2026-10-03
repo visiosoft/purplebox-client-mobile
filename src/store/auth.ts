@@ -7,7 +7,7 @@ type AuthState = {
   customer: Customer | null;
   ready: boolean;
   bootstrap: () => Promise<void>;
-  requestOtp: (phone: string) => Promise<void>;
+  requestOtp: (phone: string) => Promise<string | undefined>;
   verifyOtp: (phone: string, code: string, fullName?: string) => Promise<{ isNew: boolean }>;
   logout: () => Promise<void>;
 };
@@ -26,7 +26,8 @@ export const useAuth = create<AuthState>((set) => ({
     }
     set({ ready: true });
   },
-  requestOtp: async (phone) => { await api('/customer-auth/request-otp', { body: { phone } }); },
+  // Only a non-production server returns `code`; it lets a test build log in without a WhatsApp template.
+  requestOtp: async (phone) => (await api<{ code?: string }>('/customer-auth/request-otp', { body: { phone } })).code,
   verifyOtp: async (phone, code, fullName) => {
     const r = await api('/customer-auth/verify-otp', { body: { phone, code, fullName } });
     await saveToken(r.token);

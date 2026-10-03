@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Alert, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { Card, Screen, Text } from '@/components/ui';
+import { useRouter } from 'expo-router';
+import { Button, Card, Screen, Text } from '@/components/ui';
 import { Page, Row, Segmented, StatusChip } from '@/components/bits';
 import { DocItem, openDocument, storageApi } from '@/api/storage';
 import { aed, daysUntil, monthlyRate, shortDate } from '@/lib/format';
@@ -29,6 +30,7 @@ function Documents() {
 }
 
 export default function StorageTab() {
+  const router = useRouter();
   const [tab, setTab] = useState<'unit' | 'documents'>('unit');
   const q = useQuery({ queryKey: ['contracts'], queryFn: storageApi.contracts });
 
@@ -53,6 +55,7 @@ export default function StorageTab() {
                 </Card>
               );
             })}
+            <Button title={(q.data ?? []).length ? 'Book another unit' : 'Book a unit'} variant="soft" onPress={() => router.push('/book')} />
           </>
         )}
       </Page>
