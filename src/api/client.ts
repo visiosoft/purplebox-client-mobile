@@ -39,7 +39,10 @@ export async function api<T = any>(path: string, opts: { method?: string; body?:
       signal: ctrl.signal,
     });
     const data = await res.json().catch(() => ({}));
-    if (res.status === 401 && token) onUnauthorized?.();
+    // Only a rejected login token signs the customer out. Other 401s (a mistyped
+    // link-unit code, for one) are ordinary errors for the screen to show.
+    const TOKEN_ERRORS = ['Authentication required', 'Invalid token type', 'Invalid or expired token'];
+    if (res.status === 401 && token && TOKEN_ERRORS.includes(data?.error)) onUnauthorized?.();
     if (!res.ok) throw new ApiError(res.status, data?.error ?? `Request failed (${res.status})`, data);
     return data as T;
   } catch (e: any) {
