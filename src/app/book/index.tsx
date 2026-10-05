@@ -1,89 +1,84 @@
-import { useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { useEffect } from 'react';
+import { View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, Card, Screen, Text } from '@/components/ui';
-import { Page, Segmented, StatusChip } from '@/components/bits';
-import { Term, bookingApi } from '@/api/booking';
-import { ApiError } from '@/api/client';
-import { aed, shortDate } from '@/lib/format';
-import { fonts } from '@/theme/tokens';
-import { useTheme } from '@/theme/useTheme';
+import { useQuery } from '@tanstack/react-query';
+import { Box, MessageCircle } from 'lucide-react-native';
+import {
+  Button, EmptyState, ErrorState, GridSkeleton, Heading, Progress, Screen, ScrollBody, SizeCard, StickyFooter, Text, TopBar,
+} from '@/components';
+import { space } from '@/theme/tokens';
+import { bookingApi } from '@/api/booking';
+import { useBookingDraft } from '@/store/booking';
+import { isoDay } from '@/lib/format';
+import { openWhatsApp } from '@/lib/contact';
 
-const DAY = 86_400_000;
-const isoDay = (offset: number) => new Date(Date.now() + offset * DAY).toISOString().slice(0, 10);
-
-export default function ChooseUnit() {
+/** Step 1 · Pick a size: visual cards in a 2-column grid; the sticky button repeats the choice. */
+export default function PickSize() {
   const router = useRouter();
-  const { c } = useTheme();
-  const [offset, setOffset] = useState(0);
-  const [months, setMonths] = useState<Term>(1);
-  const start = isoDay(offset);
+  const { sizeSqf, startDate, months, set } = useBookingDraft();
 
-  const sizes = useQuery({ queryKey: ['sizes', start, months], queryFn: () => bookingApi.sizes(start, months) });
+  // A draft left open overnight must not ask for a day in the past.
+  useEffect(() => { const t = isoDay(new Date()); if (startDate < t) set({ startDate: t }); }, [startDate, set]);
 
-  const reserve = useMutation({
-    mutationFn: (sizeSqf: number) => bookingApi.reserve({ sizeSqf, startDate: start, months }),
-    onSuccess: (b) => router.push({ pathname: '/book/review', params: { id: b.bookingId } }),
-    onError: (e, sizeSqf) => {
-      if (e instanceof ApiError && e.data?.code === 'profile_incomplete') {
-        router.push({ pathname: '/book/details', params: { sizeSqf: String(sizeSqf), start, months: String(months) } });
-      } else {
-        Alert.alert('Could not reserve', e.message);
-        sizes.refetch();
-      }
-    },
-  });
+  const q = useQuery({ queryKey: ['sizes', startDate, months], queryFn: () => bookingApi.sizes(startDate, months) });
+  const sizes = q.data ?? [];
+  const selected = sizes.find((s) => s.sizeSqf === sizeSqf);
 
+  const rows: (typeof sizes)[] = [];
+  for (let i = 0; i < sizes.length; i += 2) rows.push(sizes.slice(i, i + 2));
+
+  const full = q.data && !sizes.length;
   return (
-    <Screen style={{ paddingTop: 56 }}>
-      <Page loading={false} error={sizes.error?.message} refreshing={sizes.isRefetching} onRefresh={() => sizes.refetch()}>
-        <View style={{ gap: 6 }}>
-          <Text variant="h1">Book a unit</Text>
-          <Text color="ink2">Pick your dates and a size. We hold it for you while you pay.</Text>
-        </View>
-
-        <Card style={{ gap: 14 }}>
-          <Text variant="overline" color="ink3">Move-in date</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Pressable disabled={offset <= 0} onPress={() => setOffset(offset - 1)} hitSlop={12}>
-              <Text variant="h2" style={{ opacity: offset <= 0 ? 0.25 : 1 }}>‹</Text>
-            </Pressable>
-            <Text variant="h3">{offset === 0 ? 'Today · ' : ''}{shortDate(start)}</Text>
-            <Pressable disabled={offset >= 30} onPress={() => setOffset(offset + 1)} hitSlop={12}>
-              <Text variant="h2" style={{ opacity: offset >= 30 ? 0.25 : 1 }}>›</Text>
-            </Pressable>
-          </View>
-          <Text variant="overline" color="ink3">Term</Text>
-          <Segmented value={String(months)} onChange={(v) => setMonths(Number(v) as Term)}
-            options={[{ value: '1', label: '1 mo' }, { value: '3', label: '3 mo' }, { value: '6', label: '6 mo' }, { value: '12', label: '12 mo' }]} />
-        </Card>
-
-        {sizes.isLoading ? <Text color="ink2">Checking availability…</Text> : null}
-        {sizes.data && sizes.data.length === 0 ? <Text color="ink2">No units are free for those dates. Try another date.</Text> : null}
-
-        {(sizes.data ?? []).map((s) => (
-          <Card key={s.sizeSqf} style={{ gap: 10 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text variant="h3">{s.sizeSqf} sq ft</Text>
-              <StatusChip tone={s.available <= 2 ? 'warn' : 'ok'} label={s.available <= 2 ? `Only ${s.available} left` : `${s.available} available`} />
+    <Screen>
+      <TopBar title="Book a unit" />
+      <ScrollBody refreshing={q.isRefetching} onRefresh={() => q.refetch()}>
+        <Progress value={0.25} />
+        <Heading title="Find your size" lead="PurpleBox Al Quoz, Dubai" style={{ marginBottom: space[4] }} />
+        {q.isLoading ? <GridSkeleton /> : !q.data ? (
+          <ErrorState title="Couldn't load prices" body="Nothing has been booked. Try again in a moment, or ask us on WhatsApp." onRetry={() => q.refetch()} error={q.error} />
+        ) : full ? (
+          <EmptyState
+            icon={Box}
+            title="We're full right now"
+            body="Every size is taken for these dates. Message us and we'll tell you the moment one frees up."
+            primary={{ label: 'Chat on WhatsApp', icon: MessageCircle, onPress: () => openWhatsApp("Hi PurpleBox, I'd like a storage unit — please tell me when one frees up.") }}
+          />
+        ) : (
+          <>
+            <View accessibilityRole="radiogroup" style={{ gap: space[3] }}>
+              {rows.map((row) => (
+                <View key={row[0].sizeSqf} style={{ flexDirection: 'row', gap: space[3] }}>
+                  {row.map((s) => (
+                    <SizeCard
+                      key={s.sizeSqf}
+                      sqft={s.sizeSqf}
+                      monthly={s.monthlyRate}
+                      left={s.available}
+                      selected={s.sizeSqf === sizeSqf}
+                      note={s.discountPct ? `${s.discountPct}% off your first month` : undefined}
+                      onPress={() => set({ sizeSqf: s.sizeSqf })}
+                    />
+                  ))}
+                  {row.length === 1 ? <View style={{ flex: 1 }} /> : null}
+                </View>
+              ))}
             </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text variant="meta">{aed(s.monthlyRate)}/month{s.discountPct ? ` · ${s.discountPct}% off first month` : ''}</Text>
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <View>
-                <Text variant="meta">Pay today</Text>
-                <Text style={{ fontFamily: fonts.bold, color: c.ink }}>{aed(s.payToday)}</Text>
-              </View>
-              <Button title="Reserve" style={{ paddingHorizontal: 28, height: 44 }}
-                loading={reserve.isPending && reserve.variables === s.sizeSqf} disabled={reserve.isPending}
-                onPress={() => reserve.mutate(s.sizeSqf)} />
-            </View>
-          </Card>
-        ))}
-        <Button title="Back" variant="ghost" onPress={() => router.back()} />
-      </Page>
+            <Text variant="caption" tone="muted" style={{ marginTop: space[3] }}>Monthly prices before 5% VAT.</Text>
+            <Button block variant="ghost" icon={MessageCircle} title="Not sure? Ask us on WhatsApp" style={{ marginTop: space[3] }}
+              onPress={() => openWhatsApp("Hi PurpleBox, I'm not sure which storage size I need.")} />
+          </>
+        )}
+      </ScrollBody>
+      {q.data && !full ? (
+        <StickyFooter>
+          <Button
+            block
+            title={selected ? `Continue with ${selected.sizeSqf} sqft` : 'Choose a size'}
+            disabled={!selected}
+            onPress={() => router.push('/book/when')}
+          />
+        </StickyFooter>
+      ) : null}
     </Screen>
   );
 }
