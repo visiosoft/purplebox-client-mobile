@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
+import { secure } from '@/lib/secure';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
@@ -15,7 +15,7 @@ type PrefsState = {
 const KEY = 'pb_prefs';
 
 const persist = (s: Pick<PrefsState, 'theme' | 'biometrics'>) =>
-  SecureStore.setItemAsync(KEY, JSON.stringify(s)).catch(() => {});
+  secure.set(KEY, JSON.stringify(s)).catch(() => {});
 
 export const usePrefs = create<PrefsState>((set, get) => ({
   theme: 'system',
@@ -25,7 +25,7 @@ export const usePrefs = create<PrefsState>((set, get) => ({
   setBiometrics: (biometrics) => { set({ biometrics }); persist({ theme: get().theme, biometrics }); },
   hydrate: async () => {
     try {
-      const raw = await SecureStore.getItemAsync(KEY);
+      const raw = await secure.get(KEY);
       if (raw) set({ ...JSON.parse(raw) });
     } catch {}
     set({ hydrated: true });

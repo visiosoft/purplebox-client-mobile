@@ -60,7 +60,7 @@ export function Page({ children, loading, error, refreshing, onRefresh }: {
   const { c } = useTheme();
   if (loading) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={c.br} /></View>;
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 32, gap: 16 }} showsVerticalScrollIndicator={false}
+    <ScrollView contentContainerStyle={{ paddingBottom: 120, gap: 16 }} showsVerticalScrollIndicator={false}
       refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={c.br} /> : undefined}>
       {error ? <Text style={{ color: c.err }}>{error}</Text> : null}
       {children}

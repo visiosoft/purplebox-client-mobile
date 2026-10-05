@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import { secure } from '@/lib/secure';
 
 // Local dev: set EXPO_PUBLIC_API_URL=http://<LAN-IP>:5010/api in .env
 export const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'https://api.purplebox.ae/api';
@@ -11,14 +11,14 @@ export const setUnauthorizedHandler = (fn: () => void) => { onUnauthorized = fn;
 export const getToken = () => token;
 
 export async function loadToken() {
-  token = await SecureStore.getItemAsync(TOKEN_KEY).catch(() => null);
+  token = await secure.get(TOKEN_KEY);
   return token;
 }
 
 export async function saveToken(t: string | null) {
   token = t;
-  if (t) await SecureStore.setItemAsync(TOKEN_KEY, t);
-  else await SecureStore.deleteItemAsync(TOKEN_KEY).catch(() => {});
+  if (t) await secure.set(TOKEN_KEY, t);
+  else await secure.remove(TOKEN_KEY);
 }
 
 export class ApiError extends Error {
