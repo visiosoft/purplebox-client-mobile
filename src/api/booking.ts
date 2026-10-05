@@ -22,6 +22,12 @@ export const bookingApi = {
   current: () => api<Booking | null>(`${BASE}/current`),
   pay: (id: string) => api<{ url: string }>(`${BASE}/${id}/pay`, { method: 'POST', body: {} }),
   sign: (id: string, signerName: string) => api<{ ok: boolean; contractNo: string }>(`${BASE}/${id}/sign`, { body: { signerName, signMode: 'typed' } }),
+  /**
+   * Same sign endpoint, with the finger-drawn signature as a PNG data URL. The
+   * server draws it on the signature line (buildSignedContractPdf, signMode 'draw').
+   */
+  signDrawn: (id: string, signerName: string, signatureDataUrl: string) =>
+    api<{ ok: boolean; contractNo: string }>(`${BASE}/${id}/sign`, { body: { signerName, signMode: 'draw', signatureDataUrl } }),
   contractHref: (id: string) => `${BASE}/${id}/contract.pdf`,
   updateProfile: (body: { fullName: string; email: string }) =>
     api<{ customer: { id: string; fullName: string; phone: string; email?: string } }>('/customer-auth/profile', { method: 'PATCH', body }),

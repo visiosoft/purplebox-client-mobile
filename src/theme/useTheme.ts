@@ -1,10 +1,10 @@
-import { useColorScheme } from 'react-native';
-import { usePrefs } from '@/store/prefs';
-import { dark, light, type Palette } from './tokens';
+import { light, type Palette } from './tokens';
 
+/**
+ * The app ships in light mode first (dark tokens exist in ./tokens but are not
+ * switched on yet). Every component reads colours through this hook so turning
+ * dark on later is a one-line change here.
+ */
 export function useTheme(): { c: Palette; isDark: boolean } {
-  const system = useColorScheme();
-  const mode = usePrefs((s) => s.theme);
-  const isDark = mode === 'system' ? system === 'dark' : mode === 'dark';
-  return { c: isDark ? dark : light, isDark };
+  return { c: light, isDark: false };
 }

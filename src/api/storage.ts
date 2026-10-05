@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { api, API_BASE, getToken } from './client';
@@ -40,10 +41,26 @@ export const storageApi = {
   linkRequest: (contractNo: string) => api<{ maskedPhone: string; code?: string }>(`${BASE}/link-unit/request`, { body: { contractNo } }),
   linkConfirm: (contractNo: string, code: string) =>
     api<{ token: string; customer: { id: string; fullName: string; phone: string; email?: string } }>(`${BASE}/link-unit/confirm`, { body: { contractNo, code } }),
+  contract: (id: string) => api<Contract>(`${BASE}/contracts/${id}`),
+};
+
+/** Authenticated PDF paths, for openDocument. */
+export const docHref = {
+  contract: (id: string) => `${BASE}/contracts/${id}/pdf`,
+  invoice: (id: string) => `${BASE}/invoices/${id}/pdf`,
+  receipt: (paymentId: string) => `${BASE}/payments/${paymentId}/receipt`,
 };
 
 /** PDFs sit behind the Bearer token, so they are downloaded with it and then handed to the share sheet. */
 export async function openDocument(doc: Pick<DocItem, 'href' | 'title'>) {
+  if (Platform.OS === 'web') {
+    // No file system in a browser: fetch with the token and open the PDF in a new tab.
+    const res = await fetch(`${API_BASE}${doc.href}`, { headers: { Authorization: `Bearer ${getToken()}` } });
+    if (!res.ok) throw new Error('Could not download this document');
+    const url = URL.createObjectURL(await res.blob());
+    window.open(url, '_blank');
+    return;
+  }
   const target = `${FileSystem.cacheDirectory}${doc.title.replace(/[^\w.-]/g, '_')}.pdf`;
   const res = await FileSystem.downloadAsync(`${API_BASE}${doc.href}`, target, {
     headers: { Authorization: `Bearer ${getToken()}` },
