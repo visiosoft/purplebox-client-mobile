@@ -80,6 +80,13 @@ export default function StorageTab() {
                       <Text variant="meta">In {shortDate(k.startDate)}</Text>
                       <Text variant="meta">Out {shortDate(k.endDate)}</Text>
                     </View>
+                    {k.status === 'active' ? (
+                      <Button title="Request check-out" variant="soft" style={{ height: 46 }}
+                        onPress={() => router.push({ pathname: '/checkout', params: { contractId: k.id } })} />
+                    ) : k.status === 'ended' ? (
+                      <Button title="Request refund" variant="soft" style={{ height: 46 }}
+                        onPress={() => router.push({ pathname: '/refund', params: { contractId: k.id } })} />
+                    ) : null}
                   </View>
                 </Card>
               );

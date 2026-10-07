@@ -3,6 +3,9 @@ import { api, loadToken, saveToken, setUnauthorizedHandler } from '@/api/client'
 
 export type Customer = { id: string; fullName: string; phone: string; email?: string };
 
+/** A brand-new account has no real name yet (the server stores the phone number in its place). */
+export const needsProfile = (c: Customer | null) => !!c && (!c.fullName?.trim() || /^[+\d\s()-]+$/.test(c.fullName));
+
 type AuthState = {
   customer: Customer | null;
   ready: boolean;

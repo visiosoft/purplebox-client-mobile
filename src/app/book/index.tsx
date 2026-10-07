@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Alert, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { Button, Card, IconButton, Screen, Text, TopBar } from '@/components/ui';
@@ -14,6 +14,7 @@ const isoDay = (offset: number) => new Date(Date.now() + offset * DAY).toISOStri
 
 export default function ChooseUnit() {
   const router = useRouter();
+  const { size } = useLocalSearchParams<{ size?: string }>();
   const [offset, setOffset] = useState(0);
   const [months, setMonths] = useState<Term>(1);
   const start = isoDay(offset);
@@ -62,6 +63,7 @@ export default function ChooseUnit() {
           <Card key={s.sizeSqf} style={{ gap: 14 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <View style={{ gap: 2 }}>
+                {String(s.sizeSqf) === size ? <StatusChip tone="brand" label="Recommended for you" /> : null}
                 <Text variant="h2">{s.sizeSqf} sq ft</Text>
                 <Text variant="meta">{aed(s.monthlyRate)}/month{s.discountPct ? ` · ${s.discountPct}% off first month` : ''}</Text>
               </View>

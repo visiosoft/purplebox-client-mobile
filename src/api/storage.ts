@@ -37,6 +37,8 @@ export const storageApi = {
   pay: (id: string) => api<{ url: string; balanceDue: number }>(`${BASE}/invoices/${id}/pay`, { method: 'POST', body: {} }),
   checkoutChange: (id: string, body: { action: 'extend'; months: 6 | 12 } | { action: 'move_out_early'; date: string }) =>
     api(`${BASE}/contracts/${id}/checkout-change`, { body }),
+  // Refund of the deposit after check-out. Needs the matching server route; the screen falls back to WhatsApp if it is missing.
+  refundRequest: (id: string, body: { note?: string }) => api<{ ok: boolean }>(`${BASE}/contracts/${id}/refund-request`, { body }),
   linkRequest: (contractNo: string) => api<{ maskedPhone: string; code?: string }>(`${BASE}/link-unit/request`, { body: { contractNo } }),
   linkConfirm: (contractNo: string, code: string) =>
     api<{ token: string; customer: { id: string; fullName: string; phone: string; email?: string } }>(`${BASE}/link-unit/confirm`, { body: { contractNo, code } }),

@@ -32,7 +32,7 @@ export default function BookingStatus() {
           <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: c.ac, alignItems: 'center', justifyContent: 'center' }}>
             <Check color={c.acInk} size={40} strokeWidth={1.8} />
           </View>
-          <Text variant="h1">You're all set</Text>
+          <Text variant="h1">You’re all set</Text>
           <Text color="ink2" style={{ textAlign: 'center' }}>Unit {q.data?.unit.unitNumber} is yours. Your agreement and receipt are in Storage.</Text>
           <Button title="Go to my unit" onPress={() => router.replace('/(tabs)/storage')} style={{ alignSelf: 'stretch' }} />
         </>

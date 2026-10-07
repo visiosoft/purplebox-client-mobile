@@ -72,7 +72,8 @@ export default function HomeTab() {
             <Text variant="h2">No storage unit yet</Text>
             <Text color="ink2">Book a unit in a few minutes, or link an agreement you already have with us.</Text>
             <Button title="Book a unit" onPress={() => router.push('/book')} style={{ marginTop: 6 }} />
-            <Button title="Link my existing unit" variant="soft" onPress={() => router.push('/link-unit')} />
+            <Button title="Estimate the space I need" variant="soft" onPress={() => router.push('/estimator')} />
+            <Button title="Link my existing unit" variant="ghost" onPress={() => router.push('/link-unit')} />
           </Card>
         ) : null}
 

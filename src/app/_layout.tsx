@@ -7,7 +7,8 @@ import { useFonts } from 'expo-font';
 import { Outfit_300Light, Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold } from '@expo-google-fonts/outfit';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useAuth } from '@/store/auth';
+import { useAuth, needsProfile } from '@/store/auth';
+import { Splash } from '@/components/Splash';
 import { usePrefs } from '@/store/prefs';
 import { useTheme } from '@/theme/useTheme';
 
@@ -23,8 +24,10 @@ function Gate() {
   useEffect(() => {
     if (!ready) return;
     const inAuth = segments[0] === '(auth)';
+    const onProfile = inAuth && (segments as string[])[1] === 'profile';
     if (!customer && !inAuth) router.replace('/(auth)/login');
-    else if (customer && inAuth) router.replace('/(tabs)');
+    else if (customer && needsProfile(customer) && !onProfile) router.replace('/(auth)/profile');
+    else if (customer && !needsProfile(customer) && inAuth) router.replace('/(tabs)');
   }, [ready, customer, segments, router]);
 
   return (
@@ -51,6 +54,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <Gate />
+          <Splash />
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

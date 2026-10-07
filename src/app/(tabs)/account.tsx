@@ -36,6 +36,7 @@ export default function ProfileTab() {
   const { customer, logout } = useAuth();
   const { theme, setTheme } = usePrefs();
   const [tab, setTab] = useState<TabKey>('grid');
+  const [now] = useState(Date.now);
 
   const contracts = useQuery({ queryKey: ['contracts'], queryFn: storageApi.contracts });
   const documents = useQuery({ queryKey: ['documents'], queryFn: storageApi.documents });
@@ -47,7 +48,7 @@ export default function ProfileTab() {
     return d ? [...d.agreements, ...d.invoices, ...d.receipts] : [];
   }, [documents.data]);
   const since = (contracts.data ?? []).map((k) => new Date(k.startDate).getTime()).sort((a, b) => a - b)[0];
-  const months = since ? Math.max(1, Math.round((Date.now() - since) / (28 * 86_400_000))) : 0;
+  const months = since ? Math.max(1, Math.round((now - since) / (28 * 86_400_000))) : 0;
   const realName = customer?.fullName && !/^[+\d\s()-]+$/.test(customer.fullName) ? customer.fullName : 'PurpleBox member';
 
   const gap = 6;
