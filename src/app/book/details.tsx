@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Alert, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Button, Input, Screen, Text } from '@/components/ui';
+import { Mail, User } from 'lucide-react-native';
+import { Button, Input, Screen, Text, TopBar } from '@/components/ui';
 import { Term, bookingApi } from '@/api/booking';
 import { useAuth } from '@/store/auth';
 
@@ -29,15 +30,14 @@ export default function Details() {
   };
 
   return (
-    <Screen style={{ justifyContent: 'center', gap: 18 }}>
-      <View style={{ gap: 8 }}>
-        <Text variant="h1">Your details</Text>
+    <Screen style={{ gap: 18 }}>
+      <TopBar title="Your details" />
+      <View style={{ marginTop: -8 }}>
         <Text color="ink2">Your storage agreement will be made out in this name, and your receipt sent to this email.</Text>
       </View>
-      <Input label="Full name (as on your Emirates ID)" autoCapitalize="words" value={fullName} onChangeText={setFullName} />
-      <Input label="Email" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
+      <Input label="Full name (as on your Emirates ID)" icon={User} autoCapitalize="words" value={fullName} onChangeText={setFullName} />
+      <Input label="Email" icon={Mail} keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
       <Button title="Continue" loading={busy} disabled={!valid} onPress={go} />
-      <Button title="Back" variant="ghost" onPress={() => router.back()} />
     </Screen>
   );
 }

@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { Alert } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Button, Input, Screen, Text } from '@/components/ui';
+import { Mail, User } from 'lucide-react-native';
+import { Button, Input, Screen, Text, TopBar } from '@/components/ui';
 import { bookingApi } from '@/api/booking';
 import { useAuth } from '@/store/auth';
 
@@ -25,15 +26,12 @@ export default function ProfileEdit() {
   };
 
   return (
-    <Screen style={{ justifyContent: 'center', gap: 18 }}>
-      <View style={{ gap: 6 }}>
-        <Text variant="h1">Edit profile</Text>
-        <Text color="ink2">Your agreements are made out in this name.</Text>
-      </View>
-      <Input label="Full name" autoCapitalize="words" value={fullName} onChangeText={setFullName} />
-      <Input label="Email" keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
+    <Screen style={{ gap: 18 }}>
+      <TopBar title="Edit profile" />
+      <Text color="ink2" style={{ marginTop: -8 }}>Your agreements are made out in this name.</Text>
+      <Input label="Full name" icon={User} autoCapitalize="words" value={fullName} onChangeText={setFullName} />
+      <Input label="Email" icon={Mail} keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
       <Button title="Save" loading={busy} disabled={!valid} onPress={save} />
-      <Button title="Cancel" variant="ghost" onPress={() => router.back()} />
     </Screen>
   );
 }

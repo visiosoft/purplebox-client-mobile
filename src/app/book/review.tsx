@@ -3,11 +3,11 @@ import { Alert, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, Card, Screen, Text } from '@/components/ui';
-import { Page } from '@/components/bits';
+import { Clock, CreditCard } from 'lucide-react-native';
+import { Button, Card, Screen, Text, TopBar } from '@/components/ui';
+import { Page, StatusChip } from '@/components/bits';
 import { bookingApi } from '@/api/booking';
 import { aed, shortDate } from '@/lib/format';
-import { fonts } from '@/theme/tokens';
 
 function useCountdown(iso?: string) {
   const [left, setLeft] = useState(0);
@@ -44,7 +44,7 @@ export default function Review() {
   if (b && b.state !== 'held') {
     return (
       <Screen style={{ justifyContent: 'center', gap: 16 }}>
-        <Text variant="h2">{b.state === 'expired' ? 'Your reservation has expired' : 'Booking in progress'}</Text>
+        <Text variant="h1">{b.state === 'expired' ? 'Your reservation has expired' : 'Booking in progress'}</Text>
         <Button title={b.state === 'expired' ? 'Choose a unit again' : 'Continue'}
           onPress={() => (b.state === 'expired' ? router.replace('/book') : router.replace({ pathname: '/book/status', params: { id } }))} />
       </Screen>
@@ -52,42 +52,39 @@ export default function Review() {
   }
 
   return (
-    <Screen style={{ paddingTop: 56 }}>
+    <Screen>
+      <TopBar title="Review & pay" onBack={() => router.replace('/(tabs)')} />
       <Page loading={q.isLoading} error={q.error?.message}>
         {b ? (
           <>
-            <View style={{ gap: 6 }}>
-              <Text variant="h1">Review & pay</Text>
-              <Text color="ink2">Unit {b.unit.unitNumber} is held for you for {mins}:{secs}.</Text>
-            </View>
-            <Card style={{ gap: 6 }}>
-              <Text variant="h3">{b.unit.sizeSqf} sq ft · Unit {b.unit.unitNumber}</Text>
-              <Text variant="meta">{shortDate(b.unit.startDate)} → {shortDate(b.unit.endDate)}</Text>
+            <StatusChip tone="brand" icon={Clock} label={`Held for ${mins}:${secs}`} />
+            <Card style={{ gap: 4 }}>
+              <Text variant="h2">Unit {b.unit.unitNumber}</Text>
+              <Text variant="meta">{b.unit.sizeSqf} sq ft · {shortDate(b.unit.startDate)} → {shortDate(b.unit.endDate)}</Text>
             </Card>
-            <Card style={{ gap: 10 }}>
+            <Card variant="dark" style={{ gap: 12 }}>
               {b.pricing.lines.map((l, i) => (
                 <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}>
-                  <Text variant="meta" style={{ flex: 1 }}>{l.label}</Text>
-                  <Text style={{ fontFamily: fonts.semibold }}>{aed(l.amount)}</Text>
+                  <Text variant="meta" color="onDk2" style={{ flex: 1 }}>{l.label}</Text>
+                  <Text color="onDk">{aed(l.amount)}</Text>
                 </View>
               ))}
-              <View style={{ height: 1, backgroundColor: '#8884' }} />
+              <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.12)' }} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ fontFamily: fonts.bold }}>Total</Text>
-                <Text style={{ fontFamily: fonts.bold }}>{aed(b.pricing.total)}</Text>
+                <Text color="onDk">Total</Text>
+                <Text color="onDk">{aed(b.pricing.total)}</Text>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text variant="meta">Card fee (3%)</Text>
-                <Text variant="meta">{aed(b.pricing.cardFee)}</Text>
+                <Text variant="meta" color="onDk3">Card fee (3%)</Text>
+                <Text variant="meta" color="onDk3">{aed(b.pricing.cardFee)}</Text>
               </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text variant="h3">You pay</Text>
-                <Text variant="h3">{aed(b.pricing.totalWithFee)}</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4 }}>
+                <Text variant="title" color="onDk">You pay</Text>
+                <Text variant="h1" color="onDk">{aed(b.pricing.totalWithFee)}</Text>
               </View>
-              <Text variant="meta">The refundable advance is returned at the end of your rental.</Text>
+              <Text variant="meta" color="onDk3">The refundable advance is returned at the end of your rental.</Text>
             </Card>
-            <Button title={`Pay ${aed(b.pricing.totalWithFee)}`} loading={pay.isPending} disabled={left === 0} onPress={() => pay.mutate()} />
-            <Button title="Cancel" variant="ghost" onPress={() => router.replace('/(tabs)')} />
+            <Button title={`Pay ${aed(b.pricing.totalWithFee)}`} variant="accent" icon={CreditCard} loading={pay.isPending} disabled={left === 0} onPress={() => pay.mutate()} />
           </>
         ) : null}
       </Page>

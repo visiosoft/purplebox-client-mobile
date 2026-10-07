@@ -10,3 +10,10 @@ export const daysUntil = (iso?: string | null) =>
 /** `rate` is always the monthly figure; a weekly contract bills rate ÷ 4 each week. */
 export const monthlyRate = (c: { rate: number; leasedPrice: number | null }) => c.leasedPrice ?? c.rate;
 export const weeklyRate = (c: { rate: number; leasedPrice: number | null }) => monthlyRate(c) / 4;
+
+/** How far through its term an agreement is, 0–1. */
+export const termProgress = (c: { startDate: string; endDate: string }) => {
+  const start = new Date(c.startDate).getTime();
+  const span = new Date(c.endDate).getTime() - start;
+  return span > 0 ? Math.min(1, Math.max(0, (Date.now() - start) / span)) : 0;
+};

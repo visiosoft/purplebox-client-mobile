@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Alert, Pressable, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Card, Input, Screen, Text } from '@/components/ui';
+import { Check, FileText, PenLine } from 'lucide-react-native';
+import { Button, Card, Input, Screen, Text, TopBar } from '@/components/ui';
 import { Page } from '@/components/bits';
 import { bookingApi } from '@/api/booking';
 import { openDocument } from '@/api/storage';
@@ -33,36 +34,34 @@ export default function Sign() {
   };
 
   return (
-    <Screen style={{ paddingTop: 56 }}>
+    <Screen>
+      <TopBar title="Sign your agreement" />
       <Page loading={q.isLoading} error={q.error?.message}>
-        <View style={{ gap: 6 }}>
-          <Text variant="h1">Sign your agreement</Text>
-          <Text color="ink2">Payment received. One last step and the unit is yours.</Text>
-        </View>
+        <Text color="ink2">Payment received. One last step and the unit is yours.</Text>
         {b ? (
           <Card style={{ gap: 4 }}>
-            <Text variant="h3">Unit {b.unit.unitNumber} · {b.unit.sizeSqf} sq ft</Text>
+            <Text variant="h2">Unit {b.unit.unitNumber} · {b.unit.sizeSqf} sq ft</Text>
             <Text variant="meta">{b.contractNo ? `${b.contractNo} · ` : ''}{shortDate(b.unit.startDate)} → {shortDate(b.unit.endDate)}</Text>
           </Card>
         ) : null}
-        <Button title="Read the agreement (PDF)" variant="soft"
+        <Button title="Read the agreement (PDF)" variant="soft" icon={FileText}
           onPress={() => openDocument({ href: bookingApi.contractHref(id), title: b?.contractNo ?? 'Agreement' }).catch((e) => Alert.alert('Agreement', e.message))} />
 
-        <Input label="Type your full name to sign" autoCapitalize="words" value={name} onChangeText={setName} />
+        <Input label="Type your full name to sign" icon={PenLine} autoCapitalize="words" value={name} onChangeText={setName} />
         {name.trim() ? (
-          <View style={{ borderBottomWidth: 1, borderBottomColor: c.ln2, paddingVertical: 8 }}>
-            <Text style={{ fontSize: 30, fontStyle: 'italic', fontFamily: fonts.display }}>{name}</Text>
+          <View style={{ borderBottomWidth: 1, borderBottomColor: c.ln2, borderStyle: 'dashed', paddingVertical: 8 }}>
+            <Text style={{ fontSize: 34, fontStyle: 'italic', fontFamily: fonts.light, letterSpacing: -0.8 }}>{name}</Text>
           </View>
         ) : null}
 
         <Pressable onPress={() => setAgree(!agree)} style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
-          <View style={{ width: 24, height: 24, borderRadius: 7, borderWidth: 2, borderColor: c.br, backgroundColor: agree ? c.br : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-            {agree ? <Text style={{ color: '#fff', fontFamily: fonts.bold }}>✓</Text> : null}
+          <View style={{ width: 26, height: 26, borderRadius: 13, borderWidth: agree ? 0 : 1.5, borderColor: c.ln2, backgroundColor: agree ? c.ac : c.sf, alignItems: 'center', justifyContent: 'center' }}>
+            {agree ? <Check color={c.acInk} size={15} strokeWidth={2.2} /> : null}
           </View>
           <Text style={{ flex: 1 }} color="ink2">I have read the storage agreement and agree to its terms. Typing my name is my electronic signature.</Text>
         </Pressable>
 
-        <Button title="Sign & activate" loading={busy} disabled={!agree || name.trim().split(/\s+/).length < 2} onPress={sign} />
+        <Button title="Sign & activate" variant="accent" loading={busy} disabled={!agree || name.trim().split(/\s+/).length < 2} onPress={sign} />
       </Page>
     </Screen>
   );

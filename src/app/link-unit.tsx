@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Alert, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, Input, Screen, Text } from '@/components/ui';
+import { FileText, ShieldCheck } from 'lucide-react-native';
+import { Button, Card, Input, Screen, Text, TopBar } from '@/components/ui';
 import { storageApi } from '@/api/storage';
 import { saveToken } from '@/api/client';
 import { useAuth } from '@/store/auth';
@@ -23,20 +24,20 @@ export default function LinkUnit() {
   };
 
   return (
-    <Screen style={{ justifyContent: 'center', gap: 18 }}>
-      <View style={{ gap: 8 }}>
-        <Text variant="h1">Link your unit</Text>
+    <Screen style={{ gap: 18 }}>
+      <TopBar title="Link your unit" onBack={masked ? () => { setMasked(null); setCode(''); } : undefined} />
+      <View style={{ gap: 8, marginTop: -8 }}>
         <Text color="ink2">{masked ? `We sent a code to the number on your agreement (${masked}).` : 'Enter the agreement number from your storage contract.'}</Text>
       </View>
       {!masked ? (
         <>
-          <Input label="Agreement number" autoCapitalize="characters" value={contractNo} onChangeText={setContractNo} />
+          <Input label="Agreement number" icon={FileText} placeholder="PB-2026-0042" autoCapitalize="characters" value={contractNo} onChangeText={setContractNo} />
           <Button title="Send code" loading={busy} disabled={!contractNo.trim()}
             onPress={() => run(async () => { const r = await storageApi.linkRequest(contractNo.trim()); setMasked(r.maskedPhone); if (r.code) setCode(r.code); })} />
         </>
       ) : (
         <>
-          <Input label="Verification code" keyboardType="number-pad" maxLength={6} value={code} onChangeText={setCode} />
+          <Input label="Verification code" icon={ShieldCheck} keyboardType="number-pad" maxLength={6} value={code} onChangeText={setCode} />
           <Button title="Link unit" loading={busy} disabled={code.length < 6}
             onPress={() => run(async () => {
               const r = await storageApi.linkConfirm(contractNo.trim(), code);
@@ -47,7 +48,10 @@ export default function LinkUnit() {
             })} />
         </>
       )}
-      <Button title="Cancel" variant="ghost" onPress={() => router.back()} />
+      <Card variant="dark" style={{ flexDirection: 'row', gap: 12, alignItems: 'center', padding: 18 }}>
+        <ShieldCheck color="#F8D45C" size={20} strokeWidth={1.6} />
+        <Text variant="meta" color="onDk2" style={{ flex: 1 }}>The code goes to the mobile on the agreement, so only the person on it can link the unit.</Text>
+      </Card>
     </Screen>
   );
 }
