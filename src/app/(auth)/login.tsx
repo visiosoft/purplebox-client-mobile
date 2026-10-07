@@ -1,20 +1,24 @@
 import { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, View } from 'react-native';
-import { Phone, ShieldCheck } from 'lucide-react-native';
+import { ShieldCheck } from 'lucide-react-native';
 import { Button, Input, Screen, Text } from '@/components/ui';
 import { StatusChip } from '@/components/bits';
+import { ContactField, ContactKind, contactValid, contactValue } from '@/components/ContactField';
 import { useAuth } from '@/store/auth';
-import { toE164 } from '@/lib/format';
 
-// One screen for everyone: existing customers land on their units, new ones are
-// asked for their name next (see profile.tsx).
+// One screen for everyone. A mobile or email we already hold opens that
+// customer's account with their units, contracts and invoices loaded — no
+// linking step. A new mobile starts an account and asks for a name next
+// (see profile.tsx); an email we don't hold is turned away by the server.
 export default function Login() {
   const { requestOtp, verifyOtp } = useAuth();
-  const [phone, setPhone] = useState('+971 ');
+  const [kind, setKind] = useState<ContactKind>('phone');
+  const [contact, setContact] = useState('');
   const [code, setCode] = useState('');
-  const [sent, setSent] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [wait, setWait] = useState(0);
+  const id = contactValue(kind, contact);
 
   useEffect(() => {
     if (wait <= 0) return;
@@ -26,27 +30,36 @@ export default function Login() {
     setBusy(true);
     try { await fn(); } catch (e: any) { Alert.alert('Something went wrong', e.message); } finally { setBusy(false); }
   };
-  const send = () => run(async () => { const dev = await requestOtp(toE164(phone)); if (dev) setCode(dev); setSent(true); setWait(30); });
+  const send = () => run(async () => {
+    const r = await requestOtp(id);
+    if (r.code) setCode(r.code);
+    setSentTo(r.sentTo ?? id);
+    setWait(30);
+  });
 
   return (
     <Screen style={{ justifyContent: 'center' }}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ gap: 20 }}>
         <View style={{ gap: 8 }}>
           <StatusChip label="PurpleBox Storage" tone="brand" />
-          <Text variant="display" style={{ marginTop: 10 }}>{sent ? 'Check your\nmessages' : 'Log in or\nsign up'}</Text>
-          <Text color="ink2">{sent ? `Enter the code we sent to ${toE164(phone)}.` : "Enter your mobile number. We'll send a code — new here? We'll set up your account."}</Text>
+          <Text variant="display" style={{ marginTop: 10 }}>{sentTo ? 'Check your\nmessages' : 'Log in or\nsign up'}</Text>
+          <Text color="ink2">
+            {sentTo
+              ? `Enter the code we sent to ${sentTo}.`
+              : 'Use the mobile or email you gave us. If you already rent with us, your units, contracts and invoices will be waiting.'}
+          </Text>
         </View>
-        {!sent ? (
+        {!sentTo ? (
           <>
-            <Input label="Mobile number" icon={Phone} placeholder="+971 50 123 4567" keyboardType="phone-pad" autoComplete="tel" value={phone} onChangeText={setPhone} />
-            <Button title="Send code" loading={busy} disabled={toE164(phone).replace(/\D/g, '').length < 11} onPress={send} />
+            <ContactField kind={kind} onKind={setKind} value={contact} onChange={setContact} onSubmit={() => contactValid(kind, contact) && send()} />
+            <Button title="Send code" loading={busy} disabled={!contactValid(kind, contact)} onPress={send} />
           </>
         ) : (
           <>
             <Input label="Verification code" icon={ShieldCheck} keyboardType="number-pad" textContentType="oneTimeCode" autoComplete="one-time-code" value={code} onChangeText={setCode} maxLength={6} />
-            <Button title="Verify & continue" loading={busy} disabled={code.length < 4} onPress={() => run(() => verifyOtp(toE164(phone), code))} />
+            <Button title="Verify & continue" loading={busy} disabled={code.length < 4} onPress={() => run(() => verifyOtp(id, code))} />
             <Button title={wait > 0 ? `Resend code in ${wait}s` : 'Resend code'} variant="soft" disabled={wait > 0 || busy} onPress={send} />
-            <Button title="Use a different number" variant="ghost" onPress={() => { setSent(false); setCode(''); }} />
+            <Button title={kind === 'phone' ? 'Use a different number' : 'Use a different email'} variant="ghost" onPress={() => { setSentTo(null); setCode(''); }} />
           </>
         )}
       </KeyboardAvoidingView>

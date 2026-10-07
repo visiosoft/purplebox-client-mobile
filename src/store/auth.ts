@@ -8,12 +8,18 @@ export type Customer = { id: string; fullName: string; phone: string; email?: st
 /** A brand-new account has no real name yet (the server stores the phone number in its place). */
 export const needsProfile = (c: Customer | null) => !!c && (!c.fullName?.trim() || /^[+\d\s()-]+$/.test(c.fullName));
 
+// Servers before email login read only `phone`; newer ones read `identifier` first.
+const contactBody = (identifier: string) => (identifier.includes('@') ? { identifier } : { identifier, phone: identifier });
+
+export type OtpSent = { channel: 'phone' | 'email'; sentTo?: string; code?: string };
+
 type AuthState = {
   customer: Customer | null;
   ready: boolean;
   bootstrap: () => Promise<void>;
-  requestOtp: (phone: string) => Promise<string | undefined>;
-  verifyOtp: (phone: string, code: string, fullName?: string) => Promise<{ isNew: boolean }>;
+  /** `identifier` is a mobile in E.164 or an email; the server finds the account on either. */
+  requestOtp: (identifier: string) => Promise<OtpSent>;
+  verifyOtp: (identifier: string, code: string, fullName?: string) => Promise<{ isNew: boolean }>;
   logout: () => Promise<void>;
 };
 
@@ -25,16 +31,19 @@ export const useAuth = create<AuthState>((set) => ({
     const t = await loadToken();
     if (t) {
       try {
-        const { customer } = await api('/customer-auth/me');
+        // A login that landed on an empty record comes back moved onto the
+        // customer renting on that number, with a token for it.
+        const { customer, token } = await api('/customer-auth/me');
+        if (token) await saveToken(token);
         set({ customer });
       } catch { await saveToken(null); }
     }
     set({ ready: true });
   },
   // Only a non-production server returns `code`; it lets a test build log in without a WhatsApp template.
-  requestOtp: async (phone) => (await api<{ code?: string }>('/customer-auth/request-otp', { body: { phone } })).code,
-  verifyOtp: async (phone, code, fullName) => {
-    const r = await api('/customer-auth/verify-otp', { body: { phone, code, fullName } });
+  requestOtp: (identifier) => api<OtpSent>('/customer-auth/request-otp', { body: contactBody(identifier) }),
+  verifyOtp: async (identifier, code, fullName) => {
+    const r = await api('/customer-auth/verify-otp', { body: { ...contactBody(identifier), code, fullName } });
     await saveToken(r.token);
     set({ customer: r.customer });
     return { isNew: !!r.isNew };

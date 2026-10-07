@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { IdCard } from 'lucide-react-native';
 import { Button, Card, Screen, Text, TopBar } from '@/components/ui';
-import { Page, Segmented, Steps, StatusChip } from '@/components/bits';
-import { Term, bookingApi } from '@/api/booking';
+import { HScroll, Page, Steps, StatusChip } from '@/components/bits';
+import { TERM_WEEKS, bookingApi } from '@/api/booking';
 import { ApiError } from '@/api/client';
 import { identityApi, isComplete, slotKey } from '@/api/identity';
 import { aed, shortDate } from '@/lib/format';
@@ -21,23 +21,23 @@ export default function ChooseUnit() {
   const { c } = useTheme();
   const { size } = useLocalSearchParams<{ size?: string }>();
   const [offset, setOffset] = useState(0);
-  const [months, setMonths] = useState<Term>(1);
+  const [weeks, setWeeks] = useState(4);
   const start = isoDay(offset);
 
-  const sizes = useQuery({ queryKey: ['sizes', start, months], queryFn: () => bookingApi.sizes(start, months) });
+  const sizes = useQuery({ queryKey: ['sizes', start, weeks], queryFn: () => bookingApi.sizes(start, weeks) });
 
   const reserve = useMutation({
     mutationFn: async (sizeSqf: number) => {
       // The contract needs an ID on file. If the server can't tell us, don't block the booking.
       const ids = await identityApi.status().catch(() => null);
       if (ids && !isComplete(new Set(ids.documents.map(slotKey)))) throw new NeedsId();
-      return bookingApi.reserve({ sizeSqf, startDate: start, months });
+      return bookingApi.reserve({ sizeSqf, startDate: start, weeks });
     },
     onSuccess: (b) => router.push({ pathname: '/book/review', params: { id: b.bookingId } }),
     onError: (e, sizeSqf) => {
       if (e instanceof NeedsId) { router.push({ pathname: '/id-upload', params: { flow: 'book' } }); return; }
       if (e instanceof ApiError && e.data?.code === 'profile_incomplete') {
-        router.push({ pathname: '/book/details', params: { sizeSqf: String(sizeSqf), start, months: String(months) } });
+        router.push({ pathname: '/book/details', params: { sizeSqf: String(sizeSqf), start, weeks: String(weeks) } });
       } else {
         Alert.alert('Could not reserve', e.message);
         sizes.refetch();
@@ -57,7 +57,7 @@ export default function ChooseUnit() {
 
         <Card style={{ gap: 14 }}>
           <Text variant="overline">Move-in date</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }} style={{ marginHorizontal: -4 }}>
+          <HScroll itemWidth={58} selected={offset}>
             {Array.from({ length: 30 }, (_, i) => {
               const d = new Date(`${isoDay(i)}T12:00:00`);
               const on = i === offset;
@@ -72,10 +72,25 @@ export default function ChooseUnit() {
                 </Pressable>
               );
             })}
-          </ScrollView>
-          <Text variant="overline">Term</Text>
-          <Segmented value={String(months)} onChange={(v) => setMonths(Number(v) as Term)}
-            options={[{ value: '1', label: '1 mo' }, { value: '3', label: '3 mo' }, { value: '6', label: '6 mo' }, { value: '12', label: '12 mo' }]} />
+          </HScroll>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <Text variant="overline">Term</Text>
+            <Text variant="meta">Until {shortDate(isoDay(offset + weeks * 7))}</Text>
+          </View>
+          <HScroll itemWidth={58} selected={TERM_WEEKS.indexOf(weeks)}>
+            {TERM_WEEKS.map((w) => {
+              const on = w === weeks;
+              return (
+                <Pressable key={w} onPress={() => setWeeks(w)} accessibilityRole="button" accessibilityState={{ selected: on }}
+                  accessibilityLabel={`${w} weeks`}
+                  style={{ width: 58, height: 58, borderRadius: 20, borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: on ? c.br : c.sf2 }}>
+                  <Text style={{ fontFamily: fonts.regular, fontSize: 20, color: on ? c.onBr : c.ink }}>{w}</Text>
+                  <Text variant="meta" style={{ color: on ? c.onBr : c.ink3, fontSize: 11 }}>weeks</Text>
+                </Pressable>
+              );
+            })}
+          </HScroll>
         </Card>
 
         {sizes.isLoading ? <Text color="ink2">Checking availability…</Text> : null}

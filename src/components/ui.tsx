@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import {
-  ActivityIndicator, Pressable, StyleProp, StyleSheet, Text as RNText, TextInput, TextInputProps, TextStyle, View, ViewStyle,
+  ActivityIndicator, Platform, Pressable, StyleProp, StyleSheet, Text as RNText, TextInput, TextInputProps, TextStyle, View, ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -158,7 +158,7 @@ export function Input({ label, style, icon: Icon, ...p }: TextInputProps & { lab
         <TextInput
           placeholderTextColor={c.ink3}
           {...p}
-          style={[{ flex: 1, height: '100%', fontFamily: fonts.regular, fontSize: 17, color: c.ink }, style]}
+          style={[{ flex: 1, height: '100%', fontFamily: fonts.regular, fontSize: 17, color: c.ink }, Platform.OS === 'web' && { outlineWidth: 0 }, style]}
         />
       </View>
     </View>

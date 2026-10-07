@@ -1,11 +1,11 @@
-import { Children, ReactNode, useEffect, useState } from 'react';
-import { Pressable, ScrollView, RefreshControl, View } from 'react-native';
+import { Children, ReactNode, useEffect, useRef, useState } from 'react';
+import { Platform, Pressable, ScrollView, RefreshControl, View } from 'react-native';
 import Animated, { FadeInDown, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
-import { ChevronRight, type LucideIcon } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react-native';
 import { useTheme } from '@/theme/useTheme';
 import { fonts, radius } from '@/theme/tokens';
-import { Button, Text } from './ui';
+import { Button, IconButton, Text } from './ui';
 
 type Tone = 'ok' | 'warn' | 'err' | 'brand' | 'neutral';
 
@@ -180,15 +180,18 @@ export function Gauge({ value, label, caption, size = 240 }: { value: number; la
   const h = cy + stroke / 2;
   const gap = 0.07;
   return (
-    <View style={{ width: size, height: h, alignSelf: 'center' }}>
-      <Svg width={size} height={h}>
-        {v > 0.01 ? <Path d={arc(cx, cy, r, 0, Math.max(0.001, v - (v < 1 ? gap / 2 : 0)))} stroke={c.ac} strokeWidth={stroke} strokeLinecap="round" fill="none" /> : null}
-        {v < 0.99 ? <Path d={arc(cx, cy, r, Math.min(0.999, v + (v > 0 ? gap / 2 : 0)), 1)} stroke={isDark ? c.sf3 : c.dk} strokeWidth={stroke} strokeLinecap="round" fill="none" /> : null}
-      </Svg>
-      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, alignItems: 'center' }}>
-        <Text variant="display" style={{ fontSize: size * 0.2, lineHeight: size * 0.23 }}>{label}</Text>
-        {caption ? <Text variant="meta" color="ink2">{caption}</Text> : null}
+    <View style={{ alignSelf: 'stretch', alignItems: 'center', gap: 10 }}>
+      <View style={{ width: size, height: h }}>
+        <Svg width={size} height={h}>
+          {v > 0.01 ? <Path d={arc(cx, cy, r, 0, Math.max(0.001, v - (v < 1 ? gap / 2 : 0)))} stroke={c.ac} strokeWidth={stroke} strokeLinecap="round" fill="none" /> : null}
+          {v < 0.99 ? <Path d={arc(cx, cy, r, Math.min(0.999, v + (v > 0 ? gap / 2 : 0)), 1)} stroke={isDark ? c.sf3 : c.dk} strokeWidth={stroke} strokeLinecap="round" fill="none" /> : null}
+        </Svg>
+        {/* the number sits inside the arc, kept clear of its ends */}
+        <View style={{ position: 'absolute', left: stroke + 8, right: stroke + 8, bottom: 0, alignItems: 'center' }}>
+          <Text variant="display" numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: size * 0.2, lineHeight: size * 0.23 }}>{label}</Text>
+        </View>
       </View>
+      {caption ? <Text variant="meta" color="ink2" style={{ textAlign: 'center', paddingHorizontal: 8 }}>{caption}</Text> : null}
     </View>
   );
 }
@@ -269,6 +272,62 @@ export function LineChart({ points, labels, format, height = 120 }: {
           </Pressable>
         ))}
       </View>
+    </View>
+  );
+}
+
+/**
+ * A sideways row of equal-width chips (dates, terms). Swipes on a phone; on the
+ * web, where a mouse can't drag it, the wheel scrolls it sideways and arrows
+ * page through it. The selected chip is kept in view.
+ */
+export function HScroll({ children, itemWidth, gap = 8, selected }: {
+  children: ReactNode; itemWidth: number; gap?: number; selected?: number;
+}) {
+  const ref = useRef<ScrollView>(null);
+  const [x, setX] = useState(0);
+  const [viewW, setViewW] = useState(0);
+  const [contentW, setContentW] = useState(0);
+  const step = itemWidth + gap;
+  const max = Math.max(0, contentW - viewW);
+
+  useEffect(() => {
+    if (selected === undefined || !viewW) return;
+    const left = selected * step;
+    if (left < x || left + itemWidth > x + viewW) ref.current?.scrollTo({ x: Math.max(0, Math.min(max, left - (viewW - itemWidth) / 2)), animated: true });
+    // only when the selection or size changes, not on every scroll
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, viewW, contentW]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const node = (ref.current as unknown as { getScrollableNode?: () => HTMLElement })?.getScrollableNode?.();
+    if (!node) return;
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      const atEdge = (e.deltaY < 0 && node.scrollLeft <= 0) || (e.deltaY > 0 && node.scrollLeft >= node.scrollWidth - node.clientWidth - 1);
+      if (atEdge) return; // let the page scroll on
+      node.scrollLeft += e.deltaY;
+      e.preventDefault();
+    };
+    node.addEventListener('wheel', onWheel, { passive: false });
+    return () => node.removeEventListener('wheel', onWheel);
+  }, []);
+
+  const page = (dir: 1 | -1) => {
+    const by = Math.max(step, Math.floor(viewW / step) * step - step);
+    ref.current?.scrollTo({ x: Math.max(0, Math.min(max, x + dir * by)), animated: true });
+  };
+
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      {max > 0 ? <IconButton icon={ChevronLeft} label="Scroll back" size={34} onPress={() => page(-1)} /> : null}
+      <ScrollView ref={ref} horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap }}
+        scrollEventThrottle={16} onScroll={(e) => setX(e.nativeEvent.contentOffset.x)}
+        onLayout={(e) => setViewW(e.nativeEvent.layout.width)} onContentSizeChange={(w) => setContentW(w)}>
+        {children}
+      </ScrollView>
+      {max > 0 ? <IconButton icon={ChevronRight} label="Scroll forward" size={34} onPress={() => page(1)} /> : null}
     </View>
   );
 }

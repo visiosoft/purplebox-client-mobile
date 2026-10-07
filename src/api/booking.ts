@@ -12,12 +12,12 @@ export type Booking = {
   pricing: Pricing;
 };
 
-export const TERMS = [1, 3, 6, 12] as const;
-export type Term = (typeof TERMS)[number];
+/** A term is a whole number of weeks, 4 to 32. */
+export const TERM_WEEKS = Array.from({ length: 29 }, (_, i) => i + 4);
 
 export const bookingApi = {
-  sizes: (startDate: string, months: Term) => api<Size[]>(`${BASE}/sizes?startDate=${startDate}&months=${months}`),
-  reserve: (body: { sizeSqf: number; startDate: string; months: Term }) => api<Booking>(`${BASE}/reserve`, { body }),
+  sizes: (startDate: string, weeks: number) => api<Size[]>(`${BASE}/sizes?startDate=${startDate}&weeks=${weeks}`),
+  reserve: (body: { sizeSqf: number; startDate: string; weeks: number }) => api<Booking>(`${BASE}/reserve`, { body }),
   get: (id: string) => api<Booking>(`${BASE}/${id}`),
   current: () => api<Booking | null>(`${BASE}/current`),
   pay: (id: string) => api<{ url: string }>(`${BASE}/${id}/pay`, { method: 'POST', body: {} }),

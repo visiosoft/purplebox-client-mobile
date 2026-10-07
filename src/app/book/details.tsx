@@ -3,14 +3,14 @@ import { Alert, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Mail, User } from 'lucide-react-native';
 import { Button, Input, Screen, Text, TopBar } from '@/components/ui';
-import { Term, bookingApi } from '@/api/booking';
+import { bookingApi } from '@/api/booking';
 import { useAuth } from '@/store/auth';
 
 // The contract is made out to this name and the receipt goes to this email, so
 // both are needed before a unit is held.
 export default function Details() {
   const router = useRouter();
-  const { sizeSqf, start, months } = useLocalSearchParams<{ sizeSqf: string; start: string; months: string }>();
+  const { sizeSqf, start, weeks } = useLocalSearchParams<{ sizeSqf: string; start: string; weeks: string }>();
   const customer = useAuth((s) => s.customer);
   const [fullName, setFullName] = useState(/^[+\d\s()-]+$/.test(customer?.fullName ?? '') ? '' : customer?.fullName ?? '');
   const [email, setEmail] = useState(customer?.email ?? '');
@@ -22,7 +22,7 @@ export default function Details() {
     try {
       const r = await bookingApi.updateProfile({ fullName: fullName.trim(), email: email.trim() });
       useAuth.setState({ customer: r.customer });
-      const b = await bookingApi.reserve({ sizeSqf: Number(sizeSqf), startDate: start, months: Number(months) as Term });
+      const b = await bookingApi.reserve({ sizeSqf: Number(sizeSqf), startDate: start, weeks: Number(weeks) });
       router.replace({ pathname: '/book/review', params: { id: b.bookingId } });
     } catch (e: any) {
       Alert.alert('Could not continue', e.message);

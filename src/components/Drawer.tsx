@@ -6,7 +6,7 @@ import Animated, { FadeInLeft, interpolate, runOnJS, useAnimatedStyle, useShared
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  Calculator, FileText, IdCard, Link2, LogOut, MessageCircle, PlusCircle, Undo2, type LucideIcon,
+  Calculator, FileText, IdCard, LogOut, MessageCircle, PlusCircle, Undo2, type LucideIcon,
 } from 'lucide-react-native';
 import { Avatar, Text } from '@/components/ui';
 import { Segmented } from '@/components/bits';
@@ -65,7 +65,7 @@ export function Drawer() {
     { title: 'Do more', items: [
       { icon: PlusCircle, label: 'Book a unit', path: '/book' }, { icon: Calculator, label: 'Space estimator', path: '/estimator' },
       { icon: FileText, label: 'Request check-out', path: '/checkout' }, { icon: Undo2, label: 'Request refund', path: '/refund' },
-      { icon: IdCard, label: 'ID verification', path: '/id-upload' }, { icon: Link2, label: 'I already rent with us', path: '/link-unit' },
+      { icon: IdCard, label: 'ID verification', path: '/id-upload' },
     ] },
   ];
   const realName = customer?.fullName && !/^[+\d\s()-]+$/.test(customer.fullName) ? customer.fullName : 'PurpleBox member';

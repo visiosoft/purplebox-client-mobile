@@ -18,11 +18,20 @@ export const termProgress = (c: { startDate: string; endDate: string }) => {
   return span > 0 ? Math.min(1, Math.max(0, (Date.now() - start) / span)) : 0;
 };
 
-/** Turns what someone types into +<country><number>. UAE numbers can be typed as 05x…, 5x… or with +971. */
+/**
+ * Turns what someone types into +<country><number>. UAE numbers can be typed as
+ * 05x…, 5x… or with +971 — even twice ("+971 +971 55…") or keeping the 0
+ * ("+971 055…"). Spaces before and after are ignored.
+ */
 export const toE164 = (raw: string) => {
-  let d = raw.replace(/\D/g, '');
-  if (raw.trim().startsWith('+') || d.startsWith('00')) d = d.replace(/^00/, '');
-  else if (d.startsWith('0')) d = `971${d.slice(1)}`;
-  else if (!d.startsWith('971') && d.length <= 9) d = `971${d}`;
-  return `+${d.replace(/^9710/, '971')}`;
+  const t = raw.trim();
+  let d = t.replace(/\D/g, '');
+  if (d.startsWith('00')) d = d.slice(2);
+  while (d.startsWith('971971')) d = d.slice(3);
+  if (d.startsWith('9710')) d = `971${d.slice(4)}`;
+  if (!t.startsWith('+') && !t.startsWith('00')) {
+    if (d.startsWith('0')) d = `971${d.slice(1)}`;
+    else if (!d.startsWith('971') && d.length <= 9) d = `971${d}`;
+  }
+  return `+${d}`;
 };

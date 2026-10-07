@@ -25,6 +25,9 @@ export default function HomeTab() {
   const left = daysUntil(contract?.endDate);
   const owing = home?.outstanding.total ?? 0;
   const progress = contract ? termProgress(contract) : 0;
+  // Before move-in the term hasn't begun, so count down to it instead of showing 0%.
+  const toStart = daysUntil(contract?.startDate);
+  const upcoming = toStart !== null && toStart > 0;
 
   return (
     <Screen>
@@ -74,8 +77,13 @@ export default function HomeTab() {
               <Text variant="h2">Unit {unit.unitNumber}</Text>
               <Text variant="meta">{unit.sizeSqf ? `${unit.sizeSqf} sq ft · ` : ''}{contract.contractNo}</Text>
             </View>
-            <Gauge value={progress} label={`${Math.round(progress * 100)}%`}
-              caption={left !== null && left > 0 ? `of your term · ${left} days left` : 'of your term'} />
+            {upcoming ? (
+              <Gauge value={0} label={String(toStart)}
+                caption={`day${toStart === 1 ? '' : 's'} until move-in · ${shortDate(contract.startDate)}`} />
+            ) : (
+              <Gauge value={progress} label={`${Math.round(progress * 100)}%`}
+                caption={left !== null && left > 0 ? `of your term used · ${left} days left` : 'of your term used'} />
+            )}
             <MetricPills items={[
               { label: 'Monthly', value: aed(monthlyRate(contract)), tone: 'accent' },
               { label: 'Next payment', value: shortDate(contract.nextPaymentDate), tone: 'dark' },
@@ -86,10 +94,9 @@ export default function HomeTab() {
         ) : !q.isLoading ? (
           <Card style={{ gap: 12 }}>
             <Text variant="h2">No storage unit yet</Text>
-            <Text color="ink2">Book a unit in a few minutes, or link an contract you already have with us.</Text>
+            <Text color="ink2">Book a unit in a few minutes. Already renting with us? Log in with the mobile or email on your contract.</Text>
             <Button title="Book a unit" onPress={() => router.push('/book')} style={{ marginTop: 6 }} />
             <Button title="Estimate the space I need" variant="soft" onPress={() => router.push('/estimator')} />
-            <Button title="Link my existing unit" variant="ghost" onPress={() => router.push('/link-unit')} />
           </Card>
         ) : null}
 
