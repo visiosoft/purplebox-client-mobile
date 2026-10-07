@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { FileText, MessageCircle, MoreHorizontal, Package, Pencil, Receipt } from 'lucide-react-native';
-import { Backdrop, Button, IconButton, Text } from '@/components/ui';
+import { Backdrop, Button, IconButton, MenuButton, Text } from '@/components/ui';
 import { MetricPills, Row, RowIcon, Segmented, StatusChip, invoiceTone } from '@/components/bits';
 import { openDocument, storageApi } from '@/api/storage';
 import { useAuth } from '@/store/auth';
@@ -79,7 +79,10 @@ export default function ProfileTab() {
             <Rect width="100%" height="100%" fill="url(#pb-hero)" />
           </Svg>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <IconButton icon={Pencil} label="Edit profile" tone="glass" onPress={() => router.push('/profile-edit')} />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <MenuButton tone="glass" />
+              <IconButton icon={Pencil} label="Edit profile" tone="glass" onPress={() => router.push('/profile-edit')} />
+            </View>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <IconButton icon={MessageCircle} label="Message us on WhatsApp" tone="glass" onPress={() => Linking.openURL(WHATSAPP)} />
               <IconButton icon={MoreHorizontal} label="Settings" tone="glass" onPress={settings} />

@@ -1,5 +1,6 @@
-import { ReactNode, useState } from 'react';
+import { Children, ReactNode, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, RefreshControl, View } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 import type { LucideIcon } from 'lucide-react-native';
 import { useTheme } from '@/theme/useTheme';
@@ -83,7 +84,9 @@ export function Page({ children, loading, error, refreshing, onRefresh }: {
     <ScrollView contentContainerStyle={{ paddingBottom: 130, gap: 14 }} showsVerticalScrollIndicator={false}
       refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={c.ink} /> : undefined}>
       {error ? <Text style={{ color: c.err }}>{error}</Text> : null}
-      {children}
+      {Children.toArray(children).map((child, i) => (
+        <Animated.View key={i} entering={FadeInDown.delay(Math.min(i, 8) * 70).springify().damping(18)}>{child}</Animated.View>
+      ))}
     </ScrollView>
   );
 }

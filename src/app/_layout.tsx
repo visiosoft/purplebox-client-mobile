@@ -9,6 +9,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuth, needsProfile } from '@/store/auth';
 import { Splash } from '@/components/Splash';
+import { Drawer, EdgeSwipe } from '@/components/Drawer';
 import { usePrefs } from '@/store/prefs';
 import { useTheme } from '@/theme/useTheme';
 
@@ -33,7 +34,16 @@ function Gate() {
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg } }} />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg }, animation: 'slide_from_right' }}>
+        <Stack.Screen name="estimator" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="id-upload" options={{ animation: 'slide_from_bottom' }} />
+      </Stack>
+      {customer && !needsProfile(customer) ? (
+        <>
+          {segments[0] === '(tabs)' ? <EdgeSwipe /> : null}
+          <Drawer />
+        </>
+      ) : null}
     </>
   );
 }

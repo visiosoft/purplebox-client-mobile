@@ -2,7 +2,7 @@ import { Linking, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowUpRight, Bell, FileText, MessageCircle } from 'lucide-react-native';
-import { Avatar, Button, Card, IconButton, Screen, Text } from '@/components/ui';
+import { Button, Card, IconButton, MenuButton, Screen, Text } from '@/components/ui';
 import { Gauge, MetricPills, Page, Row, RowIcon, StatusChip, invoiceTone } from '@/components/bits';
 import { storageApi } from '@/api/storage';
 import { bookingApi } from '@/api/booking';
@@ -27,7 +27,7 @@ export default function HomeTab() {
   return (
     <Screen>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, marginBottom: 18 }}>
-        <Avatar name={customer?.fullName} size={44} />
+        <MenuButton />
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <IconButton icon={MessageCircle} label="Message us on WhatsApp" onPress={() => Linking.openURL(WHATSAPP)} />
           <IconButton icon={Bell} label="Payments" badge={owing > 0} onPress={() => router.push('/(tabs)/payments')} />

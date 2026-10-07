@@ -1,7 +1,7 @@
 import { Linking, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Calculator, ChevronRight, IdCard, LogOut, MessageCircle, Package, PlusCircle, Undo2, Link2 } from 'lucide-react-native';
-import { Card, Screen, Text } from '@/components/ui';
+import { Card, Screen, TabHeader, Text } from '@/components/ui';
 import { Page, Row, RowIcon } from '@/components/bits';
 import { WHATSAPP } from '@/lib/contact';
 import { useTheme } from '@/theme/useTheme';
@@ -16,7 +16,7 @@ export default function ServicesTab() {
 
   return (
     <Screen>
-      <Text variant="h1" style={{ marginTop: 8, marginBottom: 14 }}>Services</Text>
+      <TabHeader title="Services" />
       <Page>
         <Card style={{ paddingVertical: 8 }}>
           <Text variant="overline" color="ink3" style={{ marginTop: 10 }}>Get storage</Text>

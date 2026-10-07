@@ -3,7 +3,7 @@ import { Alert, View } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CreditCard, FileText } from 'lucide-react-native';
-import { Button, Card, Screen, Text } from '@/components/ui';
+import { Button, Card, Screen, TabHeader, Text } from '@/components/ui';
 import { LineChart, MetricPills, Page, Row, RowIcon, Segmented, StatusChip, invoiceTone } from '@/components/bits';
 import { PaymentRow, openDocument, storageApi } from '@/api/storage';
 import { aed, shortDate } from '@/lib/format';
@@ -46,7 +46,7 @@ export default function PaymentsTab() {
 
   return (
     <Screen>
-      <Text variant="h1" style={{ marginTop: 8, marginBottom: 14 }}>Payments</Text>
+      <TabHeader title="Payments" />
       <Page loading={invoices.isLoading} error={invoices.error?.message} refreshing={invoices.isRefetching} onRefresh={refresh}>
         <Card style={{ gap: 18 }}>
           <View style={{ gap: 2 }}>

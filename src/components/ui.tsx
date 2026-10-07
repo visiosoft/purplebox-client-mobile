@@ -6,9 +6,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, type LucideIcon } from 'lucide-react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import { ArrowLeft, Menu, type LucideIcon } from 'lucide-react-native';
+import { useDrawer } from '@/store/drawer';
 import { useTheme } from '@/theme/useTheme';
 import { fonts, radius, space } from '@/theme/tokens';
+
+const APressable = Animated.createAnimatedComponent(Pressable);
 
 type Ink = 'ink' | 'ink2' | 'ink3' | 'onDk' | 'onDk2' | 'onDk3';
 
@@ -66,7 +70,7 @@ export function Card({ children, style, variant = 'light' }: {
   const bg = variant === 'dark' ? c.dk : variant === 'accent' ? c.ac : c.sf;
   return (
     <View style={[{
-      backgroundColor: bg, borderRadius: variant === 'dark' ? radius.hero : radius.card, padding: 20,
+      backgroundColor: bg, borderRadius: variant === 'dark' ? radius.hero : radius.card, borderCurve: 'continuous', padding: 20,
       ...(variant === 'light' && !isDark ? {
         borderWidth: 1, borderColor: 'rgba(255,255,255,0.9)',
         shadowColor: '#8A7B3C', shadowOpacity: 0.08, shadowRadius: 24, shadowOffset: { width: 0, height: 8 }, elevation: 2,
@@ -83,17 +87,20 @@ export function Button({ title, onPress, loading, disabled, variant = 'primary',
   const bg = { primary: c.br, accent: c.ac, soft: c.sf, ghost: 'transparent' }[variant];
   const fg = { primary: c.onBr, accent: c.acInk, soft: c.ink, ghost: c.ink2 }[variant];
   const off = disabled || loading;
+  const scale = useSharedValue(1);
+  const spring = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   return (
-    <Pressable
+    <APressable
       disabled={off}
       accessibilityRole="button"
+      onPressIn={() => { scale.set(withSpring(0.96, { damping: 18, stiffness: 400 })); }}
+      onPressOut={() => { scale.set(withSpring(1, { damping: 12, stiffness: 300 })); }}
       onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); onPress(); }}
-      style={({ pressed }) => [{
-        height: 54, borderRadius: radius.chip, backgroundColor: bg, alignItems: 'center', justifyContent: 'center',
+      style={[{
+        height: 54, borderRadius: radius.chip, borderCurve: 'continuous', backgroundColor: bg, alignItems: 'center', justifyContent: 'center',
         flexDirection: 'row', gap: 8, paddingHorizontal: 22,
-        borderWidth: variant === 'soft' ? 1 : 0, borderColor: c.ln,
-        opacity: off ? 0.4 : pressed ? 0.85 : 1, transform: [{ scale: pressed ? 0.98 : 1 }],
-      }, style]}
+        borderWidth: variant === 'soft' ? 1 : 0, borderColor: c.ln, opacity: off ? 0.4 : 1,
+      }, style, spring]}
     >
       {loading ? <ActivityIndicator color={fg} /> : (
         <>
@@ -101,7 +108,7 @@ export function Button({ title, onPress, loading, disabled, variant = 'primary',
           <RNText style={{ color: fg, fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.1 }}>{title}</RNText>
         </>
       )}
-    </Pressable>
+    </APressable>
   );
 }
 
@@ -144,7 +151,7 @@ export function Input({ label, style, icon: Icon, ...p }: TextInputProps & { lab
     <View style={{ gap: 8 }}>
       {label ? <Text variant="overline" color="ink2" style={{ marginLeft: 4 }}>{label}</Text> : null}
       <View style={{
-        flexDirection: 'row', alignItems: 'center', gap: 10, height: 58, borderRadius: radius.input,
+        flexDirection: 'row', alignItems: 'center', gap: 10, height: 58, borderRadius: radius.input, borderCurve: 'continuous',
         backgroundColor: c.sf, borderWidth: 1, borderColor: c.ln, paddingHorizontal: 18,
       }}>
         {Icon ? <Icon color={c.ink3} size={18} strokeWidth={1.6} /> : null}
@@ -168,6 +175,25 @@ export function Avatar({ name, size = 46, tone = 'accent' }: { name?: string; si
   return (
     <View style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
       <RNText style={{ fontFamily: fonts.regular, fontSize: size * 0.36, color: tone === 'dark' ? c.onDk : c.ink }}>{initialsOf(name)}</RNText>
+    </View>
+  );
+}
+
+/** Opens the left-hand menu. */
+export function MenuButton({ tone = 'light' }: { tone?: 'light' | 'glass' }) {
+  const setOpen = useDrawer((s) => s.setOpen);
+  return <IconButton icon={Menu} label="Open menu" tone={tone} onPress={() => setOpen(true)} />;
+}
+
+/** Header for the main tabs: menu button on the left, optional actions on the right, large title beneath. */
+export function TabHeader({ title, right }: { title: string; right?: ReactNode }) {
+  return (
+    <View style={{ gap: 14, marginTop: 8, marginBottom: 14 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <MenuButton />
+        <View style={{ flexDirection: 'row', gap: 8 }}>{right}</View>
+      </View>
+      <Text variant="h1">{title}</Text>
     </View>
   );
 }

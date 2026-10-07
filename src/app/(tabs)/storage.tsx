@@ -3,7 +3,7 @@ import { Alert, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { ArrowUpRight, FileSignature, FileText, Package, Plus, Receipt } from 'lucide-react-native';
-import { Button, Card, IconButton, Screen, Text } from '@/components/ui';
+import { Button, Card, IconButton, Screen, TabHeader, Text } from '@/components/ui';
 import { Meter, Page, Row, RowIcon, Segmented, StatusChip } from '@/components/bits';
 import { bookingApi } from '@/api/booking';
 import { DocItem, openDocument, storageApi } from '@/api/storage';
@@ -55,10 +55,7 @@ export default function StorageTab() {
 
   return (
     <Screen>
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, marginBottom: 14 }}>
-        <Text variant="h1">Storage</Text>
-        <IconButton icon={Plus} label="Book a unit" onPress={() => router.push('/book')} />
-      </View>
+      <TabHeader title="Storage" right={<IconButton icon={Plus} label="Book a unit" onPress={() => router.push('/book')} />} />
       <Page loading={q.isLoading} error={q.error?.message} refreshing={q.isRefetching} onRefresh={() => q.refetch()}>
         <Segmented value={tab} onChange={setTab} options={[{ value: 'unit', label: 'Units' }, { value: 'documents', label: 'Documents' }]} />
         {tab === 'documents' ? <Documents /> : (
