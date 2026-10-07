@@ -36,6 +36,13 @@
         }
       ],
       "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "PurpleBox uses the camera to photograph your Emirates ID or passport for your storage agreement.",
+          "photosPermission": "PurpleBox needs your photos so you can upload your Emirates ID or passport."
+        }
+      ],
       "expo-sharing",
       "expo-build-properties",
       [

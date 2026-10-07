@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 import { ArrowUpRight, FileSignature, FileText, Package, Plus, Receipt } from 'lucide-react-native';
 import { Button, Card, IconButton, Screen, Text } from '@/components/ui';
 import { Meter, Page, Row, RowIcon, Segmented, StatusChip } from '@/components/bits';
+import { bookingApi } from '@/api/booking';
 import { DocItem, openDocument, storageApi } from '@/api/storage';
 import { useTheme } from '@/theme/useTheme';
 import { aed, daysUntil, monthlyRate, shortDate, termProgress } from '@/lib/format';
@@ -35,6 +36,15 @@ function Documents() {
       ) : null)}
     </View>
   );
+}
+
+// An agreement waiting for a signature is finished through its booking; if there isn't one, the team can help.
+async function signPending(router: ReturnType<typeof useRouter>) {
+  try {
+    const b = await bookingApi.current();
+    if (b && b.state === 'ready_to_sign') router.push({ pathname: '/book/sign', params: { id: b.bookingId } });
+    else Alert.alert('Sign agreement', 'We could not find an agreement ready to sign. Please message us and we will sort it out.');
+  } catch (e: any) { Alert.alert('Sign agreement', e.message); }
 }
 
 export default function StorageTab() {
@@ -80,7 +90,9 @@ export default function StorageTab() {
                       <Text variant="meta">In {shortDate(k.startDate)}</Text>
                       <Text variant="meta">Out {shortDate(k.endDate)}</Text>
                     </View>
-                    {k.status === 'active' ? (
+                    {k.status === 'pending_signature' ? (
+                      <Button title="Sign agreement" variant="accent" style={{ height: 46 }} onPress={() => signPending(router)} />
+                    ) : k.status === 'active' ? (
                       <Button title="Request check-out" variant="soft" style={{ height: 46 }}
                         onPress={() => router.push({ pathname: '/checkout', params: { contractId: k.id } })} />
                     ) : k.status === 'ended' ? (

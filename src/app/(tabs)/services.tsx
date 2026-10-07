@@ -1,6 +1,6 @@
 import { Linking, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Calculator, ChevronRight, LogOut, MessageCircle, Package, PlusCircle, Undo2, Link2 } from 'lucide-react-native';
+import { Calculator, ChevronRight, IdCard, LogOut, MessageCircle, Package, PlusCircle, Undo2, Link2 } from 'lucide-react-native';
 import { Card, Screen, Text } from '@/components/ui';
 import { Page, Row, RowIcon } from '@/components/bits';
 import { WHATSAPP } from '@/lib/contact';
@@ -22,6 +22,7 @@ export default function ServicesTab() {
           <Text variant="overline" color="ink3" style={{ marginTop: 10 }}>Get storage</Text>
           {item(Calculator, 'Space estimator', 'Work out which size you need', go('/estimator'))}
           {item(PlusCircle, 'Book a unit', 'Pick a size, pay online, sign', go('/book'))}
+          {item(IdCard, 'ID verification', 'Upload your Emirates ID or passport', go('/id-upload'))}
           {item(Link2, 'Link an existing unit', "Already stored with us? Add it to this account", go('/link-unit'))}
         </Card>
         <Card style={{ paddingVertical: 8 }}>

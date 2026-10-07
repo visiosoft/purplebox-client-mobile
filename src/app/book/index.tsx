@@ -7,8 +7,10 @@ import { Button, Card, IconButton, Screen, Text, TopBar } from '@/components/ui'
 import { Page, Segmented, StatusChip } from '@/components/bits';
 import { Term, bookingApi } from '@/api/booking';
 import { ApiError } from '@/api/client';
+import { identityApi, isComplete, slotKey } from '@/api/identity';
 import { aed, shortDate } from '@/lib/format';
 
+class NeedsId extends Error {}
 const DAY = 86_400_000;
 const isoDay = (offset: number) => new Date(Date.now() + offset * DAY).toISOString().slice(0, 10);
 
@@ -22,9 +24,15 @@ export default function ChooseUnit() {
   const sizes = useQuery({ queryKey: ['sizes', start, months], queryFn: () => bookingApi.sizes(start, months) });
 
   const reserve = useMutation({
-    mutationFn: (sizeSqf: number) => bookingApi.reserve({ sizeSqf, startDate: start, months }),
+    mutationFn: async (sizeSqf: number) => {
+      // The agreement needs an ID on file. If the server can't tell us, don't block the booking.
+      const ids = await identityApi.status().catch(() => null);
+      if (ids && !isComplete(new Set(ids.documents.map(slotKey)))) throw new NeedsId();
+      return bookingApi.reserve({ sizeSqf, startDate: start, months });
+    },
     onSuccess: (b) => router.push({ pathname: '/book/review', params: { id: b.bookingId } }),
     onError: (e, sizeSqf) => {
+      if (e instanceof NeedsId) { router.push('/id-upload'); return; }
       if (e instanceof ApiError && e.data?.code === 'profile_incomplete') {
         router.push({ pathname: '/book/details', params: { sizeSqf: String(sizeSqf), start, months: String(months) } });
       } else {
