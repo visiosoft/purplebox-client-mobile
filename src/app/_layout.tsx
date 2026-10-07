@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuth, needsProfile } from '@/store/auth';
 import { Splash } from '@/components/Splash';
 import { Drawer, EdgeSwipe } from '@/components/Drawer';
+import { useBookingReminders } from '@/hooks/useBookingReminders';
 import { usePrefs } from '@/store/prefs';
 import { useRequests } from '@/store/requests';
 import { useTheme } from '@/theme/useTheme';
@@ -22,6 +23,7 @@ function Gate() {
   const segments = useSegments();
   const router = useRouter();
   const { c, isDark } = useTheme();
+  useBookingReminders(!!customer && !needsProfile(customer));
 
   useEffect(() => {
     if (!ready) return;

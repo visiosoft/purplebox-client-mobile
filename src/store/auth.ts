@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { useRequests } from '@/store/requests';
+import { syncBookingReminders } from '@/lib/reminders';
 import { api, loadToken, saveToken, setUnauthorizedHandler } from '@/api/client';
 
 export type Customer = { id: string; fullName: string; phone: string; email?: string };
@@ -38,5 +39,5 @@ export const useAuth = create<AuthState>((set) => ({
     set({ customer: r.customer });
     return { isNew: !!r.isNew };
   },
-  logout: async () => { await saveToken(null); useRequests.getState().clear(); set({ customer: null }); },
+  logout: async () => { await saveToken(null); useRequests.getState().clear(); syncBookingReminders(null, { enabled: false }); set({ customer: null }); },
 }));

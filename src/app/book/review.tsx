@@ -7,6 +7,8 @@ import { Clock, CreditCard } from 'lucide-react-native';
 import { Button, Card, Screen, Text, TopBar } from '@/components/ui';
 import { Page, Steps, StatusChip } from '@/components/bits';
 import { bookingApi } from '@/api/booking';
+import { syncBookingReminders } from '@/lib/reminders';
+import { usePrefs } from '@/store/prefs';
 import { aed, shortDate } from '@/lib/format';
 
 function useCountdown(iso?: string) {
@@ -27,6 +29,11 @@ export default function Review() {
   const q = useQuery({ queryKey: ['booking', id], queryFn: () => bookingApi.get(id) });
   const b = q.data;
   const left = useCountdown(b?.holdExpiresAt);
+  const remindersOn = usePrefs((s) => s.reminders);
+  // First moment we know the booking number: offer reminders (this is when the permission prompt appears).
+  useEffect(() => {
+    if (b?.state === 'held') syncBookingReminders({ bookingId: b.bookingId, quoteNo: b.quoteNo, state: b.state, unitNumber: b.unit.unitNumber, sizeSqf: b.unit.sizeSqf }, { enabled: remindersOn, ask: true });
+  }, [b, remindersOn]);
   const mins = Math.floor(left / 60000);
   const secs = String(Math.floor((left % 60000) / 1000)).padStart(2, '0');
 

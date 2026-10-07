@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Alert, Linking, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Linking, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-import { ChevronRight, FileText, IdCard, Link2, MessageCircle, MoreHorizontal, Package, Pencil, Receipt } from 'lucide-react-native';
+import { Bell, ChevronRight, FileText, IdCard, Link2, MessageCircle, MoreHorizontal, Package, Pencil, Receipt } from 'lucide-react-native';
 import { Backdrop, Button, IconButton, MenuButton, Text } from '@/components/ui';
 import { MetricPills, Row, RowIcon, Segmented, StatusChip, invoiceTone } from '@/components/bits';
 import { openDocument, storageApi } from '@/api/storage';
@@ -26,7 +26,7 @@ export default function ProfileTab() {
   const insets = useSafeAreaInsets();
   const { c } = useTheme();
   const { customer, logout } = useAuth();
-  const { theme, setTheme } = usePrefs();
+  const { theme, setTheme, reminders, setReminders } = usePrefs();
   const [tab, setTab] = useState<TabKey>('saved');
   const [now] = useState(Date.now);
 
@@ -117,6 +117,8 @@ export default function ProfileTab() {
         <View style={{ backgroundColor: c.sf, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 6 }}>
           <Row leading={<RowIcon icon={IdCard} />} title="ID verification" sub="Emirates ID or passport" onPress={() => router.push('/id-upload')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
           <Row leading={<RowIcon icon={Link2} />} title="I already rent with PurpleBox" sub="Add an existing unit to this account" onPress={() => router.push('/link-unit')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
+          <Row leading={<RowIcon icon={Bell} />} title="Booking reminders" sub="Up to 3 nudges if a booking isn’t finished"
+            right={<Switch value={reminders} onValueChange={setReminders} trackColor={{ true: c.br }} />} />
           <Row leading={<RowIcon icon={MessageCircle} />} title="Chat with us" sub="WhatsApp, 7 days a week" onPress={() => Linking.openURL(WHATSAPP)} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
         </View>
 
