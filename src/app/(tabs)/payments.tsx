@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Alert, View } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CreditCard, FileText } from 'lucide-react-native';
 import { Button, Card, Screen, TabHeader, Text } from '@/components/ui';
 import { LineChart, MetricPills, Page, Row, RowIcon, Segmented, StatusChip, invoiceTone } from '@/components/bits';
 import { PaymentRow, openDocument, storageApi } from '@/api/storage';
+import { payInApp } from '@/lib/payInApp';
 import { aed, shortDate } from '@/lib/format';
 
 /** Totals paid in each of the last six calendar months, oldest first. */
@@ -30,11 +30,13 @@ export default function PaymentsTab() {
 
   // Stripe confirms payment to the server by webhook; the app only opens the page, then re-reads.
   const pay = useMutation({
-    mutationFn: async (id: string) => {
-      const { url } = await storageApi.pay(id);
-      await WebBrowser.openBrowserAsync(url);
+    mutationFn: (id: string) => {
+      const inv = (invoices.data ?? []).find((i) => i.id === id);
+      return payInApp({ kind: 'invoice', id, label: inv ? `Pay ${aed(inv.balanceDue)}` : undefined });
     },
-    onSettled: () => { refresh(); },
+    onSuccess: (r) => { if (r === 'paid') Alert.alert('Payment received', 'Thank you! Your receipt will appear in a moment.'); },
+    // the server hears from Stripe a moment after the sheet closes, so look again shortly as well
+    onSettled: () => { refresh(); setTimeout(refresh, 3000); },
     onError: (e: Error) => Alert.alert('Payment', e.message),
   });
 

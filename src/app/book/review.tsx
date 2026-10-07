@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Alert, View } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Clock, CreditCard } from 'lucide-react-native';
 import { Button, Card, Screen, Text, TopBar } from '@/components/ui';
 import { Page, Steps, StatusChip } from '@/components/bits';
 import { bookingApi } from '@/api/booking';
+import { payInApp } from '@/lib/payInApp';
 import { syncBookingReminders } from '@/lib/reminders';
 import { usePrefs } from '@/store/prefs';
 import { aed, shortDate } from '@/lib/format';
@@ -40,11 +40,9 @@ export default function Review() {
   // Payment is confirmed to the server by Stripe, not by this app, so after the
   // browser closes we just go and look at where the booking has got to.
   const pay = useMutation({
-    mutationFn: async () => {
-      const { url } = await bookingApi.pay(id);
-      await WebBrowser.openBrowserAsync(url);
-    },
-    onSuccess: () => router.replace({ pathname: '/book/status', params: { id } }),
+    mutationFn: () => payInApp({ kind: 'booking', id, label: b ? `Pay ${aed(b.pricing.totalWithFee)}` : undefined }),
+    // 'handed-off' means Stripe's page is open in the app and takes us to the status screen itself when it finishes.
+    onSuccess: (r) => { if (r === 'paid') router.replace({ pathname: '/book/status', params: { id } }); },
     onError: (e) => Alert.alert('Payment', e.message),
   });
 
