@@ -7,6 +7,7 @@ import { Button, Card, Input, Screen, Text, TopBar } from '@/components/ui';
 import { Page, RowIcon, StatusChip } from '@/components/bits';
 import { storageApi } from '@/api/storage';
 import { ApiError } from '@/api/client';
+import { useRequests } from '@/store/requests';
 import { aed, shortDate } from '@/lib/format';
 import { WHATSAPP } from '@/lib/contact';
 import { useTheme } from '@/theme/useTheme';
@@ -25,11 +26,14 @@ export default function Refund() {
   const done = () => Alert.alert('Request sent', "Thanks — we'll review your refund and update you shortly.", [{ text: 'OK', onPress: () => router.back() }]);
   const send = useMutation({
     mutationFn: () => storageApi.refundRequest(contract!.id, { note: note.trim() || undefined }),
-    onSuccess: done,
+    onSuccess: () => {
+      useRequests.getState().add({ kind: 'refund', contractId: contract!.id, unit: contract!.units.map((u) => u.unitNumber).join(', ') });
+      done();
+    },
     onError: (e: Error) => {
       // The refund route may not be live on the server yet; hand the request to the team on WhatsApp instead.
       if (e instanceof ApiError && (e.status === 404 || e.status === 405)) {
-        const text = `Hi PurpleBox, I'd like to request my deposit refund for agreement ${contract!.contractNo}.${note.trim() ? ` ${note.trim()}` : ''}`;
+        const text = `Hi PurpleBox, I'd like to request my deposit refund for contract ${contract!.contractNo}.${note.trim() ? ` ${note.trim()}` : ''}`;
         Linking.openURL(`${WHATSAPP}?text=${encodeURIComponent(text)}`);
       } else Alert.alert('Could not send request', e.message);
     },
@@ -47,7 +51,7 @@ export default function Refund() {
           </Card>
         ) : (
           <>
-            <Text color="ink2">Choose the agreement you’d like a refund for.</Text>
+            <Text color="ink2">Choose the contract you’d like a refund for.</Text>
             {ended.map((k) => (
               <Pressable key={k.id} onPress={() => setPicked(k.id)}>
                 <Card style={{ flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 2, borderColor: contract?.id === k.id ? c.ac : 'transparent' }}>

@@ -28,7 +28,7 @@ export default function ProfileEdit() {
   return (
     <Screen style={{ gap: 18 }}>
       <TopBar title="Edit profile" />
-      <Text color="ink2" style={{ marginTop: -8 }}>Your agreements are made out in this name.</Text>
+      <Text color="ink2" style={{ marginTop: -8 }}>Your contracts are made out in this name.</Text>
       <Input label="Full name" icon={User} autoCapitalize="words" value={fullName} onChangeText={setFullName} />
       <Input label="Email" icon={Mail} keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
       <Button title="Save" loading={busy} disabled={!valid} onPress={save} />

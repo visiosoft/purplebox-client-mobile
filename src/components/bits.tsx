@@ -1,11 +1,11 @@
-import { Children, ReactNode, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, RefreshControl, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { Children, ReactNode, useEffect, useState } from 'react';
+import { Pressable, ScrollView, RefreshControl, View } from 'react-native';
+import Animated, { FadeInDown, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
-import type { LucideIcon } from 'lucide-react-native';
+import { ChevronRight, type LucideIcon } from 'lucide-react-native';
 import { useTheme } from '@/theme/useTheme';
 import { fonts, radius } from '@/theme/tokens';
-import { Text } from './ui';
+import { Button, Text } from './ui';
 
 type Tone = 'ok' | 'warn' | 'err' | 'brand' | 'neutral';
 
@@ -59,7 +59,7 @@ export function Row({ title, sub, right, onPress, leading, dark }: {
         <Text variant="title" color={dark ? 'onDk' : 'ink'} style={{ fontSize: 15 }}>{title}</Text>
         {sub ? <Text variant="meta" color={dark ? 'onDk3' : 'ink3'}>{sub}</Text> : null}
       </View>
-      {right}
+      {right ?? (onPress ? <ChevronRight color={dark ? c.onDk3 : c.ink3} size={18} strokeWidth={1.6} /> : null)}
     </Pressable>
   );
 }
@@ -74,20 +74,68 @@ export function RowIcon({ icon: Icon, dark }: { icon: LucideIcon; dark?: boolean
   );
 }
 
-/** A scrolling tab page with pull-to-refresh and loading/error states, so each screen only renders its data. */
+/** A soft pulsing block that stands in for content while it loads. */
+export function Skeleton({ height = 96, radiusPx = 28 }: { height?: number; radiusPx?: number }) {
+  const { c } = useTheme();
+  const reduced = useReducedMotion();
+  const o = useSharedValue(0.55);
+  useEffect(() => { if (!reduced) o.set(withRepeat(withTiming(1, { duration: 800 }), -1, true)); }, [o, reduced]);
+  const style = useAnimatedStyle(() => ({ opacity: o.get() }));
+  return <Animated.View style={[{ height, borderRadius: radiusPx, borderCurve: 'continuous', backgroundColor: c.sf2 }, style]} />;
+}
+
+/** A scrolling page with pull-to-refresh, skeleton loading and a retry on errors, so each screen only renders its data. */
 export function Page({ children, loading, error, refreshing, onRefresh }: {
   children: ReactNode; loading?: boolean; error?: string | null; refreshing?: boolean; onRefresh?: () => void;
 }) {
   const { c } = useTheme();
-  if (loading) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={c.ink} /></View>;
+  const reduced = useReducedMotion();
+  if (loading) return <View style={{ gap: 14 }}><Skeleton height={220} /><Skeleton height={120} /><Skeleton height={120} /></View>;
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 130, gap: 14 }} showsVerticalScrollIndicator={false}
       refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={c.ink} /> : undefined}>
-      {error ? <Text style={{ color: c.err }}>{error}</Text> : null}
+      {error ? (
+        <View style={{ gap: 10, backgroundColor: c.errBg, borderRadius: radius.card, padding: 16 }}>
+          <Text style={{ color: c.err }}>{error}</Text>
+          {onRefresh ? <Button title="Try again" variant="soft" style={{ height: 44 }} onPress={onRefresh} /> : null}
+        </View>
+      ) : null}
       {Children.toArray(children).map((child, i) => (
-        <Animated.View key={i} entering={FadeInDown.delay(Math.min(i, 8) * 70).springify().damping(18)}>{child}</Animated.View>
+        <Animated.View key={i} entering={reduced ? undefined : FadeInDown.delay(Math.min(i, 8) * 70).springify().damping(18)}>{child}</Animated.View>
       ))}
     </ScrollView>
+  );
+}
+
+/** "Step 2 of 4 · ID" for the booking journey, so people know how far there is to go. */
+export const BOOKING_STEPS = ['Size', 'ID', 'Pay', 'Sign'] as const;
+export function Steps({ current }: { current: 0 | 1 | 2 | 3 }) {
+  const { c } = useTheme();
+  return (
+    <View style={{ gap: 8 }} accessibilityLabel={`Step ${current + 1} of ${BOOKING_STEPS.length}: ${BOOKING_STEPS[current]}`}>
+      <View style={{ flexDirection: 'row', gap: 6 }}>
+        {BOOKING_STEPS.map((l, i) => <View key={l} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i <= current ? c.br : c.sf3 }} />)}
+      </View>
+      <Text variant="meta">Step {current + 1} of {BOOKING_STEPS.length} · {BOOKING_STEPS[current]}</Text>
+    </View>
+  );
+}
+
+/** Round, labelled shortcuts for the things people do most. */
+export function QuickActions({ items }: { items: { icon: LucideIcon; label: string; onPress: () => void }[] }) {
+  const { c } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+      {items.map((it) => (
+        <Pressable key={it.label} onPress={it.onPress} accessibilityRole="button" accessibilityLabel={it.label}
+          style={({ pressed }) => ({ flex: 1, alignItems: 'center', gap: 8, opacity: pressed ? 0.6 : 1 })}>
+          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: c.sf, borderWidth: 1, borderColor: c.ln, alignItems: 'center', justifyContent: 'center' }}>
+            <it.icon color={c.ink} size={22} strokeWidth={1.6} />
+          </View>
+          <Text variant="meta" color="ink" style={{ textAlign: 'center' }}>{it.label}</Text>
+        </Pressable>
+      ))}
+    </View>
   );
 }
 

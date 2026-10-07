@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Svg, { Ellipse, Path, Polygon } from 'react-native-svg';
 import Animated, {
-  Easing, runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming, type SharedValue,
+  Easing, runOnJS, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withSequence, withTiming, type SharedValue,
 } from 'react-native-reanimated';
 import { fonts } from '@/theme/tokens';
+import { usePrefs } from '@/store/prefs';
 
 const BRAND = '#5B2BC9'; // same as the native splash in app.json, so the hand-off is seamless
 const SKY = 'rgba(255,255,255,0.15)';
-const HOLD_MS = 3200; // when the fade-out starts
+const HOLD_MS = 3200; // when the fade-out starts (first launch)
+const REPEAT = 0.4; // later launches, and reduced motion, play the same intro at 40% of the length
 
 /** Dubai silhouette: Burj Al Arab, Burj Khalifa, the Dubai Frame and a row of towers. Baseline at y=160. */
 function Skyline({ width }: { width: number }) {
@@ -53,6 +55,8 @@ function Lid({ lift }: { lift: SharedValue<number> }) {
 /** Branded intro over the first screen: the skyline rises, a box drops in and opens, the name appears, then it fades away. */
 export function Splash() {
   const { width } = useWindowDimensions();
+  const reduced = useReducedMotion();
+  const [k] = useState(() => (usePrefs.getState().introSeen || reduced ? REPEAT : 1)); // time scale
   const [visible, setVisible] = useState(true);
   const fade = useSharedValue(1);
   const sky = useSharedValue(0);
@@ -63,16 +67,21 @@ export function Splash() {
   const tag = useSharedValue(0);
   const line = useSharedValue(0);
 
+  const hide = () => setVisible(false);
   useEffect(() => {
-    sky.value = withTiming(1, { duration: 900, easing: Easing.out(Easing.cubic) });
-    drop.value = withDelay(500, withTiming(0, { duration: 900, easing: Easing.out(Easing.bounce) }));
-    shadow.value = withDelay(500, withTiming(1, { duration: 900, easing: Easing.in(Easing.quad) }));
-    lift.value = withDelay(1550, withSequence(withTiming(-16, { duration: 220, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: 380, easing: Easing.out(Easing.bounce) })));
-    name.value = withDelay(1700, withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) }));
-    tag.value = withDelay(2000, withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) }));
-    line.value = withDelay(2200, withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) }));
-    fade.value = withDelay(HOLD_MS, withTiming(0, { duration: 450 }, (done) => { if (done) runOnJS(setVisible)(false); }));
-  }, [fade, sky, drop, shadow, lift, name, tag, line]);
+    usePrefs.getState().markIntroSeen();
+    sky.set(withTiming(1, { duration: 900 * k, easing: Easing.out(Easing.cubic) }));
+    drop.set(withDelay(500 * k, withTiming(0, { duration: 900 * k, easing: Easing.out(Easing.bounce) })));
+    shadow.set(withDelay(500 * k, withTiming(1, { duration: 900 * k, easing: Easing.in(Easing.quad) })));
+    lift.set(withDelay(1550 * k, withSequence(withTiming(-16, { duration: 220 * k, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: 380 * k, easing: Easing.out(Easing.bounce) }))));
+    name.set(withDelay(1700 * k, withTiming(1, { duration: 600 * k, easing: Easing.out(Easing.cubic) })));
+    tag.set(withDelay(2000 * k, withTiming(1, { duration: 600 * k, easing: Easing.out(Easing.cubic) })));
+    line.set(withDelay(2200 * k, withTiming(1, { duration: 600 * k, easing: Easing.out(Easing.cubic) })));
+    fade.set(withDelay(HOLD_MS * k, withTiming(0, { duration: 450 * Math.max(k, 0.6) }, (done) => { if (done) runOnJS(hide)(); })));
+  }, [fade, sky, drop, shadow, lift, name, tag, line, k]);
+
+  // Tap anywhere to skip.
+  const skip = () => fade.set(withTiming(0, { duration: 250 }, (done) => { if (done) runOnJS(hide)(); }));
 
   const wrap = useAnimatedStyle(() => ({ opacity: fade.value }));
   const skyStyle = useAnimatedStyle(() => ({ opacity: sky.value, transform: [{ translateY: (1 - sky.value) * 60 }] }));
@@ -85,11 +94,12 @@ export function Splash() {
   if (!visible) return null;
   return (
     <Animated.View pointerEvents="auto" style={[StyleSheet.absoluteFill, styles.wrap, wrap]}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={skip} accessibilityLabel="Skip intro" accessibilityRole="button" />
       <Animated.View style={[styles.sky, skyStyle]}>
         <Skyline width={width} />
       </Animated.View>
 
-      <View style={styles.center}>
+      <View style={styles.center} pointerEvents="none">
         <View style={{ width: 120, height: 130 }}>
           <Animated.View style={[styles.shadow, shadowStyle]}>
             <Svg width={90} height={14}><Ellipse cx={45} cy={7} rx={45} ry={7} fill="#1B0B4D" /></Svg>

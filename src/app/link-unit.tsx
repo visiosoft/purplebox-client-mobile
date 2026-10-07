@@ -8,8 +8,8 @@ import { storageApi } from '@/api/storage';
 import { saveToken } from '@/api/client';
 import { useAuth } from '@/store/auth';
 
-// The code is sent to the phone number on the agreement, so this proves the
-// person linking it holds that number — not just that they know the agreement no.
+// The code is sent to the phone number on the contract, so this proves the
+// person linking it holds that number — not just that they know the contract no.
 export default function LinkUnit() {
   const router = useRouter();
   const qc = useQueryClient();
@@ -27,11 +27,11 @@ export default function LinkUnit() {
     <Screen style={{ gap: 18 }}>
       <TopBar title="Link your unit" onBack={masked ? () => { setMasked(null); setCode(''); } : undefined} />
       <View style={{ gap: 8, marginTop: -8 }}>
-        <Text color="ink2">{masked ? `We sent a code to the number on your agreement (${masked}).` : 'Enter the agreement number from your storage contract.'}</Text>
+        <Text color="ink2">{masked ? `We sent a code to the number on your contract (${masked}).` : 'Enter the number printed on your storage contract.'}</Text>
       </View>
       {!masked ? (
         <>
-          <Input label="Agreement number" icon={FileText} placeholder="PB-2026-0042" autoCapitalize="characters" value={contractNo} onChangeText={setContractNo} />
+          <Input label="Contract number" icon={FileText} placeholder="PB-2026-0042" autoCapitalize="characters" value={contractNo} onChangeText={setContractNo} />
           <Button title="Send code" loading={busy} disabled={!contractNo.trim()}
             onPress={() => run(async () => { const r = await storageApi.linkRequest(contractNo.trim()); setMasked(r.maskedPhone); if (r.code) setCode(r.code); })} />
         </>
@@ -50,7 +50,7 @@ export default function LinkUnit() {
       )}
       <Card variant="dark" style={{ flexDirection: 'row', gap: 12, alignItems: 'center', padding: 18 }}>
         <ShieldCheck color="#F8D45C" size={20} strokeWidth={1.6} />
-        <Text variant="meta" color="onDk2" style={{ flex: 1 }}>The code goes to the mobile on the agreement, so only the person on it can link the unit.</Text>
+        <Text variant="meta" color="onDk2" style={{ flex: 1 }}>The code goes to the mobile on the contract, so only the person on it can link the unit.</Text>
       </Card>
     </Screen>
   );

@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { Image } from 'expo-image';
+import { Alert, Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-import { FileText, MessageCircle, MoreHorizontal, Package, Pencil, Receipt } from 'lucide-react-native';
+import { ChevronRight, FileText, IdCard, Link2, MessageCircle, MoreHorizontal, Package, Pencil, Receipt } from 'lucide-react-native';
 import { Backdrop, Button, IconButton, MenuButton, Text } from '@/components/ui';
 import { MetricPills, Row, RowIcon, Segmented, StatusChip, invoiceTone } from '@/components/bits';
 import { openDocument, storageApi } from '@/api/storage';
@@ -16,14 +15,8 @@ import { fonts, radius, space } from '@/theme/tokens';
 import { aed, shortDate } from '@/lib/format';
 import { WHATSAPP } from '@/lib/contact';
 
-// Interior shots for the gallery grid ("ideas for your space").
-const PHOTOS = [
-  '1586023492125-27b2c045efd7', '1616486338812-3dadae4b4ace', '1618221195710-dd6b41faaea6',
-  '1600210492486-724fe5c67fb0', '1600585154340-be6161a56a0c', '1615874959474-d609969a20ed',
-  '1617806118233-18e1de247200', '1556228453-efd6c1ff04f6', '1505693416388-ac5ce068fe85',
-].map((id) => `https://images.unsplash.com/photo-${id}?w=500&q=70&fit=crop`);
 
-type TabKey = 'grid' | 'saved' | 'tagged';
+type TabKey = 'saved' | 'tagged';
 
 const initials = (name?: string) =>
   (name && !/^[+\d\s()-]+$/.test(name) ? name : 'PB').split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('');
@@ -31,11 +24,10 @@ const initials = (name?: string) =>
 export default function ProfileTab() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
   const { c } = useTheme();
   const { customer, logout } = useAuth();
   const { theme, setTheme } = usePrefs();
-  const [tab, setTab] = useState<TabKey>('grid');
+  const [tab, setTab] = useState<TabKey>('saved');
   const [now] = useState(Date.now);
 
   const contracts = useQuery({ queryKey: ['contracts'], queryFn: storageApi.contracts });
@@ -50,9 +42,6 @@ export default function ProfileTab() {
   const since = (contracts.data ?? []).map((k) => new Date(k.startDate).getTime()).sort((a, b) => a - b)[0];
   const months = since ? Math.max(1, Math.round((now - since) / (28 * 86_400_000))) : 0;
   const realName = customer?.fullName && !/^[+\d\s()-]+$/.test(customer.fullName) ? customer.fullName : 'PurpleBox member';
-
-  const gap = 6;
-  const tile = Math.floor((width - space.gutter * 2 - gap * 2) / 3);
 
   const settings = () => Alert.alert('Settings', `Theme: ${theme}`, [
     { text: 'Light', onPress: () => setTheme('light') },
@@ -125,24 +114,16 @@ export default function ProfileTab() {
 
         <Button title={units.length ? 'Book another unit' : 'Book a unit'} onPress={() => router.push('/book')} />
 
-        <Segmented value={tab} onChange={setTab}
-          options={[{ value: 'grid', label: 'Gallery' }, { value: 'saved', label: 'Documents' }, { value: 'tagged', label: 'Invoices' }]} />
+        <View style={{ backgroundColor: c.sf, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 6 }}>
+          <Row leading={<RowIcon icon={IdCard} />} title="ID verification" sub="Emirates ID or passport" onPress={() => router.push('/id-upload')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
+          <Row leading={<RowIcon icon={Link2} />} title="I already rent with PurpleBox" sub="Add an existing unit to this account" onPress={() => router.push('/link-unit')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
+          <Row leading={<RowIcon icon={MessageCircle} />} title="Chat with us" sub="WhatsApp, 7 days a week" onPress={() => Linking.openURL(WHATSAPP)} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
+        </View>
 
-        {tab === 'grid' ? (
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap }}>
-            {units.map((u, i) => (
-              <Pressable key={u.id} onPress={() => router.push('/(tabs)/storage')} style={{ width: tile, height: tile }}>
-                <Image source={PHOTOS[i % PHOTOS.length]} style={{ flex: 1, borderRadius: radius.tile }} contentFit="cover" transition={200} />
-                <View style={{ position: 'absolute', left: 6, bottom: 6, backgroundColor: c.ac, borderRadius: radius.chip, paddingHorizontal: 8, paddingVertical: 3 }}>
-                  <Text style={{ fontFamily: fonts.regular, fontSize: 11, color: c.acInk }}>{u.units[0]?.unitNumber}</Text>
-                </View>
-              </Pressable>
-            ))}
-            {PHOTOS.slice(units.length % PHOTOS.length).concat(PHOTOS).slice(0, Math.max(9 - units.length, 3)).map((uri, i) => (
-              <Image key={`p${i}`} source={uri} style={{ width: tile, height: tile, borderRadius: radius.tile }} contentFit="cover" transition={200} />
-            ))}
-          </View>
-        ) : tab === 'saved' ? (
+        <Segmented value={tab} onChange={setTab}
+          options={[{ value: 'saved', label: 'Documents' }, { value: 'tagged', label: 'Invoices' }]} />
+
+        {tab === 'saved' ? (
           <View style={{ backgroundColor: c.sf, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 6 }}>
             {docs.length === 0 ? <Text color="ink2" style={{ paddingVertical: 14, textAlign: 'center' }}>No documents yet.</Text> : null}
             {docs.map((d) => (

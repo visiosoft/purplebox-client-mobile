@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
 import { Linking, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { usePathname, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { FadeInLeft, interpolate, runOnJS, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  Calculator, CreditCard, FileText, Home, IdCard, Link2, LogOut, MessageCircle, Package, PlusCircle, Truck, Undo2, User, type LucideIcon,
+  Calculator, FileText, IdCard, Link2, LogOut, MessageCircle, PlusCircle, Undo2, type LucideIcon,
 } from 'lucide-react-native';
 import { Avatar, Text } from '@/components/ui';
 import { Segmented } from '@/components/bits';
@@ -27,7 +27,6 @@ export function Drawer() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const pathname = usePathname();
   const { c } = useTheme();
   const { customer, logout } = useAuth();
   const { theme, setTheme } = usePrefs();
@@ -63,18 +62,12 @@ export function Drawer() {
     if (item.path) setTimeout(() => router.navigate(item.path as never), 120);
   };
   const sections: { title: string; items: Item[] }[] = [
-    { title: 'Menu', items: [
-      { icon: Home, label: 'Home', path: '/(tabs)' }, { icon: Package, label: 'Storage', path: '/(tabs)/storage' },
-      { icon: Truck, label: 'Services', path: '/(tabs)/services' }, { icon: CreditCard, label: 'Payments', path: '/(tabs)/payments' },
-      { icon: User, label: 'Profile', path: '/(tabs)/account' },
-    ] },
-    { title: 'Quick actions', items: [
+    { title: 'Do more', items: [
       { icon: PlusCircle, label: 'Book a unit', path: '/book' }, { icon: Calculator, label: 'Space estimator', path: '/estimator' },
-      { icon: IdCard, label: 'ID verification', path: '/id-upload' }, { icon: FileText, label: 'Request check-out', path: '/checkout' },
-      { icon: Undo2, label: 'Request refund', path: '/refund' }, { icon: Link2, label: 'Link a unit', path: '/link-unit' },
+      { icon: FileText, label: 'Request check-out', path: '/checkout' }, { icon: Undo2, label: 'Request refund', path: '/refund' },
+      { icon: IdCard, label: 'ID verification', path: '/id-upload' }, { icon: Link2, label: 'I already rent with us', path: '/link-unit' },
     ] },
   ];
-  const isActive = (path?: string) => !!path && (path === '/(tabs)' ? pathname === '/' : pathname === path.replace('/(tabs)', ''));
   const realName = customer?.fullName && !/^[+\d\s()-]+$/.test(customer.fullName) ? customer.fullName : 'PurpleBox member';
   let n = 0;
 
@@ -103,7 +96,7 @@ export function Drawer() {
               <View key={s.title} style={{ gap: 2 }}>
                 <Text variant="overline" color="ink3" style={{ marginTop: 10, marginBottom: 4, marginLeft: 8 }}>{s.title.toUpperCase()}</Text>
                 {s.items.map((item) => {
-                  const active = isActive(item.path);
+                  const active = false;
                   return (
                     <Animated.View key={item.label} entering={FadeInLeft.delay(100 + 35 * n++).springify().damping(18)}>
                       <Pressable onPress={go(item)} accessibilityRole="button" style={({ pressed }) => ({

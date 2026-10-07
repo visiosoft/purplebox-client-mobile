@@ -2,18 +2,19 @@ import { useState } from 'react';
 import { Alert, View } from 'react-native';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Camera, Check, ImageIcon, ShieldCheck } from 'lucide-react-native';
 import { Button, Card, Screen, Text, TopBar } from '@/components/ui';
-import { Page, Segmented, StatusChip } from '@/components/bits';
-import { IdType, SLOTS, Slot, identityApi, isComplete, slotKey } from '@/api/identity';
+import { Page, Segmented, Steps, StatusChip } from '@/components/bits';
+import { IdType, SLOTS, Slot, identityApi, slotKey } from '@/api/identity';
 import { useTheme } from '@/theme/useTheme';
 import { radius } from '@/theme/tokens';
 
-// Your agreement needs a copy of your ID. Take a photo or pick one from the library; each photo uploads as soon as it is chosen.
+// Your contract needs a copy of your ID. Take a photo or pick one from the library; each photo uploads as soon as it is chosen.
 export default function IdUpload() {
   const router = useRouter();
+  const { flow } = useLocalSearchParams<{ flow?: string }>();
   const { c } = useTheme();
   const [type, setType] = useState<IdType>('emirates_id');
   const [local, setLocal] = useState<Record<string, string>>({}); // slot -> preview uri
@@ -45,7 +46,8 @@ export default function IdUpload() {
     <Screen>
       <TopBar title="Verify your ID" />
       <Page>
-        <Text color="ink2">We need a clear photo of your ID for your storage agreement. Use good light and keep all four corners in view.</Text>
+        {flow === 'book' ? <Steps current={1} /> : null}
+        <Text color="ink2">We need a clear photo of your ID for your storage contract. Use good light and keep all four corners in view.</Text>
         <Segmented value={type} onChange={setType} options={[{ value: 'emirates_id', label: 'Emirates ID' }, { value: 'passport', label: 'Passport' }]} />
 
         {slots.map((slot) => {
@@ -66,11 +68,11 @@ export default function IdUpload() {
           );
         })}
 
-        <Button title={isComplete(onFile) || ready ? 'Done' : 'Add all photos to continue'} variant="accent" disabled={!ready}
+        <Button title={flow === 'book' && ready ? 'Continue booking' : ready ? 'Done' : 'Add all photos to continue'} variant="accent" disabled={!ready}
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))} />
         <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
           <ShieldCheck color={c.ink3} size={16} strokeWidth={1.6} />
-          <Text variant="meta" style={{ flex: 1 }}>Sent securely and used only for your agreement.</Text>
+          <Text variant="meta" style={{ flex: 1 }}>Sent securely and used only for your contract.</Text>
         </View>
       </Page>
     </Screen>

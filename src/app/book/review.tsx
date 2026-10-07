@@ -5,7 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Clock, CreditCard } from 'lucide-react-native';
 import { Button, Card, Screen, Text, TopBar } from '@/components/ui';
-import { Page, StatusChip } from '@/components/bits';
+import { Page, Steps, StatusChip } from '@/components/bits';
 import { bookingApi } from '@/api/booking';
 import { aed, shortDate } from '@/lib/format';
 
@@ -57,6 +57,7 @@ export default function Review() {
       <Page loading={q.isLoading} error={q.error?.message}>
         {b ? (
           <>
+            <Steps current={2} />
             <StatusChip tone="brand" icon={Clock} label={`Held for ${mins}:${secs}`} />
             <Card style={{ gap: 4 }}>
               <Text variant="h2">Unit {b.unit.unitNumber}</Text>

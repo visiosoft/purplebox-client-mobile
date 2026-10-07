@@ -12,7 +12,7 @@ export type Palette = {
 
 export const light: Palette = {
   bg: '#F6F3E7', bg2: '#F3ECCB', sf: '#FDFCF7', sf2: '#EFEBDA', sf3: '#E4DEC6',
-  ink: '#262626', ink2: '#5C5A53', ink3: '#9B988D',
+  ink: '#262626', ink2: '#5C5A53', ink3: '#6E6B61',
   br: '#2B2B2B', onBr: '#FFFFFF',
   ac: '#F8D45C', acSoft: '#FBEDB9', acInk: '#262626',
   dk: '#2E2E2E', dk2: '#3A3A3A', onDk: '#FFFFFF', onDk2: 'rgba(255,255,255,0.62)', onDk3: 'rgba(255,255,255,0.38)',

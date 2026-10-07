@@ -11,6 +11,7 @@ import { useAuth, needsProfile } from '@/store/auth';
 import { Splash } from '@/components/Splash';
 import { Drawer, EdgeSwipe } from '@/components/Drawer';
 import { usePrefs } from '@/store/prefs';
+import { useRequests } from '@/store/requests';
 import { useTheme } from '@/theme/useTheme';
 
 SplashScreen.preventAutoHideAsync();
@@ -55,7 +56,7 @@ export default function RootLayout() {
   const ready = useAuth((s) => s.ready);
   const hydrated = usePrefs((s) => s.hydrated);
 
-  useEffect(() => { usePrefs.getState().hydrate(); useAuth.getState().bootstrap(); }, []);
+  useEffect(() => { usePrefs.getState().hydrate(); useRequests.getState().hydrate(); useAuth.getState().bootstrap(); }, []);
   useEffect(() => { if (fontsLoaded && ready && hydrated) SplashScreen.hideAsync(); }, [fontsLoaded, ready, hydrated]);
 
   if (!fontsLoaded || !ready || !hydrated) return null;

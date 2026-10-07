@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Check, FileText, PenLine } from 'lucide-react-native';
 import { Button, Card, Input, Screen, Text, TopBar } from '@/components/ui';
-import { Page } from '@/components/bits';
+import { Page, Steps } from '@/components/bits';
 import { bookingApi } from '@/api/booking';
 import { openDocument } from '@/api/storage';
 import { useAuth } from '@/store/auth';
@@ -35,8 +35,9 @@ export default function Sign() {
 
   return (
     <Screen>
-      <TopBar title="Sign your agreement" />
+      <TopBar title="Sign your contract" />
       <Page loading={q.isLoading} error={q.error?.message}>
+        <Steps current={3} />
         <Text color="ink2">Payment received. One last step and the unit is yours.</Text>
         {b ? (
           <Card style={{ gap: 4 }}>
@@ -44,8 +45,8 @@ export default function Sign() {
             <Text variant="meta">{b.contractNo ? `${b.contractNo} · ` : ''}{shortDate(b.unit.startDate)} → {shortDate(b.unit.endDate)}</Text>
           </Card>
         ) : null}
-        <Button title="Read the agreement (PDF)" variant="soft" icon={FileText}
-          onPress={() => openDocument({ href: bookingApi.contractHref(id), title: b?.contractNo ?? 'Agreement' }).catch((e) => Alert.alert('Agreement', e.message))} />
+        <Button title="Read the contract (PDF)" variant="soft" icon={FileText}
+          onPress={() => openDocument({ href: bookingApi.contractHref(id), title: b?.contractNo ?? 'Contract' }).catch((e) => Alert.alert('Contract', e.message))} />
 
         <Input label="Type your full name to sign" icon={PenLine} autoCapitalize="words" value={name} onChangeText={setName} />
         {name.trim() ? (
@@ -58,7 +59,7 @@ export default function Sign() {
           <View style={{ width: 26, height: 26, borderRadius: 13, borderWidth: agree ? 0 : 1.5, borderColor: c.ln2, backgroundColor: agree ? c.ac : c.sf, alignItems: 'center', justifyContent: 'center' }}>
             {agree ? <Check color={c.acInk} size={15} strokeWidth={2.2} /> : null}
           </View>
-          <Text style={{ flex: 1 }} color="ink2">I have read the storage agreement and agree to its terms. Typing my name is my electronic signature.</Text>
+          <Text style={{ flex: 1 }} color="ink2">I have read the storage contract and agree to its terms. Typing my name is my electronic signature.</Text>
         </Pressable>
 
         <Button title="Sign & activate" variant="accent" loading={busy} disabled={!agree || name.trim().split(/\s+/).length < 2} onPress={sign} />

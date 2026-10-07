@@ -28,7 +28,7 @@ export function Text({ style, variant = 'body', color, ...p }: React.ComponentPr
     h3: { fontFamily: fonts.regular, fontSize: 20, letterSpacing: -0.3, lineHeight: 26 },
     title: { fontFamily: fonts.regular, fontSize: 17, letterSpacing: -0.1, lineHeight: 22 },
     body: { fontFamily: fonts.light, fontSize: 15, lineHeight: 21 },
-    meta: { fontFamily: fonts.light, fontSize: 13, lineHeight: 18 },
+    meta: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18 },
     overline: { fontFamily: fonts.regular, fontSize: 13, letterSpacing: 0.1 },
   };
   const fallback: Ink = variant === 'meta' || variant === 'overline' ? 'ink3' : 'ink';

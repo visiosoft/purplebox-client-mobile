@@ -30,7 +30,7 @@ export default function CreateProfile() {
         <View style={{ gap: 8 }}>
           <StatusChip label="Almost there" tone="brand" />
           <Text variant="display" style={{ marginTop: 10 }}>Tell us{'\n'}about you</Text>
-          <Text color="ink2">Your storage agreement is made out in this name, and receipts go to this email.</Text>
+          <Text color="ink2">Your storage contract is made out in this name, and receipts go to this email.</Text>
         </View>
         <Input label="Full name" icon={User} autoCapitalize="words" autoComplete="name" value={fullName} onChangeText={setFullName} />
         <Input label="Email" icon={Mail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" value={email} onChangeText={setEmail} />

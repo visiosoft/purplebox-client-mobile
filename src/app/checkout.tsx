@@ -6,6 +6,7 @@ import { Check, ChevronLeft, ChevronRight, Package } from 'lucide-react-native';
 import { Button, Card, IconButton, Screen, Text, TopBar } from '@/components/ui';
 import { Page, RowIcon, Segmented } from '@/components/bits';
 import { storageApi } from '@/api/storage';
+import { useRequests } from '@/store/requests';
 import { aed, daysUntil, monthlyRate, shortDate } from '@/lib/format';
 import { useTheme } from '@/theme/useTheme';
 
@@ -29,9 +30,13 @@ export default function Checkout() {
 
   const send = useMutation({
     mutationFn: (body: Parameters<typeof storageApi.checkoutChange>[1]) => storageApi.checkoutChange(contract!.id, body),
-    onSuccess: () => {
+    onSuccess: (_r, body) => {
+      useRequests.getState().add({
+        kind: body.action === 'extend' ? 'extend' : 'checkout', contractId: contract!.id,
+        unit: contract!.units.map((u) => u.unitNumber).join(', '), detail: body.action === 'extend' ? `${body.months} months` : shortDate(body.date),
+      });
       qc.invalidateQueries();
-      Alert.alert('Request sent', 'Thanks — our team will confirm your check-out shortly.', [{ text: 'OK', onPress: () => router.back() }]);
+      Alert.alert('Request sent', 'Thanks — our team will confirm shortly. You can follow it on Home and My Units.', [{ text: 'OK', onPress: () => router.back() }]);
     },
     onError: (e: Error) => Alert.alert('Could not send request', e.message),
   });
@@ -63,7 +68,7 @@ export default function Checkout() {
           <>
             <Card style={{ gap: 14 }}>
               <Text variant="h3">Move out early</Text>
-              <Text variant="meta">Your agreement runs to {shortDate(contract.endDate)}. Choose the day you’ll empty the unit.</Text>
+              <Text variant="meta">Your contract runs to {shortDate(contract.endDate)}. Choose the day you’ll empty the unit.</Text>
               <Segmented value="" onChange={(v) => setOffset(Number(v))}
                 options={[{ value: '7', label: '1 wk' }, { value: '14', label: '2 wks' }, { value: '30', label: '1 mo' }, { value: String(maxOffset), label: 'End' }]} />
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>

@@ -1,12 +1,13 @@
 import { Linking, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowUpRight, Bell, FileText, MessageCircle } from 'lucide-react-native';
+import { ArrowUpRight, Bell, Clock, CreditCard, FileText, LogOut, MessageCircle, PlusCircle } from 'lucide-react-native';
 import { Button, Card, IconButton, MenuButton, Screen, Text } from '@/components/ui';
-import { Gauge, MetricPills, Page, Row, RowIcon, StatusChip, invoiceTone } from '@/components/bits';
+import { Gauge, MetricPills, Page, QuickActions, Row, RowIcon, StatusChip, invoiceTone } from '@/components/bits';
 import { storageApi } from '@/api/storage';
 import { bookingApi } from '@/api/booking';
 import { useAuth } from '@/store/auth';
+import { REQUEST_LABEL, useRequests } from '@/store/requests';
 import { aed, daysUntil, monthlyRate, shortDate, termProgress } from '@/lib/format';
 import { WHATSAPP } from '@/lib/contact';
 
@@ -16,6 +17,7 @@ export default function HomeTab() {
   const name = customer?.fullName?.split(' ')[0];
   const q = useQuery({ queryKey: ['home'], queryFn: storageApi.home });
   const pending = useQuery({ queryKey: ['booking-current'], queryFn: bookingApi.current });
+  const requests = useRequests((s) => s.items);
   const home = q.data;
   const contract = home?.primaryContract;
   const unit = contract?.units[0];
@@ -43,7 +45,7 @@ export default function HomeTab() {
               <ArrowUpRight color="#262626" size={20} strokeWidth={1.6} />
             </View>
             <Text color="ink2">
-              {pending.data.state === 'ready_to_sign' ? `Unit ${pending.data.unit.unitNumber} is paid — sign your agreement to activate it.`
+              {pending.data.state === 'ready_to_sign' ? `Unit ${pending.data.unit.unitNumber} is paid — sign your contract to activate it.`
                 : pending.data.state === 'held' ? `Unit ${pending.data.unit.unitNumber} is held for you. Complete payment to keep it.`
                 : `We're finishing up unit ${pending.data.unit.unitNumber}.`}
             </Text>
@@ -52,6 +54,20 @@ export default function HomeTab() {
           </Card>
         ) : null}
 
+        {owing > 0 ? (
+          <Card variant="dark" style={{ gap: 6 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+              <Text variant="title" color="onDk">Balance due</Text>
+              <Text variant="h2" color="onDk">{aed(owing)}</Text>
+            </View>
+            {home!.outstanding.invoices.slice(0, 3).map((i) => (
+              <Row key={i.id} dark leading={<RowIcon icon={FileText} dark />} title={i.invoiceNo} sub={`Due ${shortDate(i.dueDate)}`}
+                onPress={() => router.push('/(tabs)/payments')}
+                right={<StatusChip label={i.status} tone={invoiceTone(i.status)} />} />
+            ))}
+            <Button title="Pay now" variant="accent" onPress={() => router.push('/(tabs)/payments')} style={{ marginTop: 8 }} />
+          </Card>
+        ) : null}
         {contract && unit ? (
           <Card style={{ gap: 18, paddingTop: 24 }}>
             <View style={{ alignItems: 'center', gap: 2 }}>
@@ -70,25 +86,30 @@ export default function HomeTab() {
         ) : !q.isLoading ? (
           <Card style={{ gap: 12 }}>
             <Text variant="h2">No storage unit yet</Text>
-            <Text color="ink2">Book a unit in a few minutes, or link an agreement you already have with us.</Text>
+            <Text color="ink2">Book a unit in a few minutes, or link an contract you already have with us.</Text>
             <Button title="Book a unit" onPress={() => router.push('/book')} style={{ marginTop: 6 }} />
             <Button title="Estimate the space I need" variant="soft" onPress={() => router.push('/estimator')} />
             <Button title="Link my existing unit" variant="ghost" onPress={() => router.push('/link-unit')} />
           </Card>
         ) : null}
 
-        {owing > 0 ? (
-          <Card variant="dark" style={{ gap: 6 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <Text variant="title" color="onDk">Balance due</Text>
-              <Text variant="h2" color="onDk">{aed(owing)}</Text>
-            </View>
-            {home!.outstanding.invoices.slice(0, 3).map((i) => (
-              <Row key={i.id} dark leading={<RowIcon icon={FileText} dark />} title={i.invoiceNo} sub={`Due ${shortDate(i.dueDate)}`}
-                onPress={() => router.push('/(tabs)/payments')}
-                right={<StatusChip label={i.status} tone={invoiceTone(i.status)} />} />
+        {contract ? (
+          <QuickActions items={[
+            { icon: CreditCard, label: 'Pay', onPress: () => router.navigate('/(tabs)/payments') },
+            { icon: FileText, label: 'Documents', onPress: () => router.navigate({ pathname: '/(tabs)/storage', params: { tab: 'documents' } }) },
+            { icon: LogOut, label: 'Check-out', onPress: () => router.push('/checkout') },
+            { icon: PlusCircle, label: 'Book', onPress: () => router.push('/book') },
+          ]} />
+        ) : null}
+
+        {requests.length ? (
+          <Card style={{ gap: 4, paddingVertical: 14 }}>
+            <Text variant="title">Your requests</Text>
+            {requests.map((r) => (
+              <Row key={r.id} leading={<RowIcon icon={Clock} />} title={REQUEST_LABEL[r.kind]}
+                sub={`Unit ${r.unit}${r.detail ? ` · ${r.detail}` : ''} · sent ${shortDate(new Date(r.at).toISOString())}`}
+                right={<StatusChip label="Pending" tone="warn" />} />
             ))}
-            <Button title="Pay now" variant="accent" onPress={() => router.push('/(tabs)/payments')} style={{ marginTop: 8 }} />
           </Card>
         ) : null}
       </Page>

@@ -8,7 +8,7 @@ import { bookingApi } from '@/api/booking';
 import { useTheme } from '@/theme/useTheme';
 
 // Stripe tells the server a payment cleared, and the server then makes the
-// agreement. That takes a moment, so after paying we poll until it is ready.
+// contract. That takes a moment, so after paying we poll until it is ready.
 export default function BookingStatus() {
   const router = useRouter();
   const qc = useQueryClient();
@@ -33,7 +33,7 @@ export default function BookingStatus() {
             <Check color={c.acInk} size={40} strokeWidth={1.8} />
           </View>
           <Text variant="h1">You’re all set</Text>
-          <Text color="ink2" style={{ textAlign: 'center' }}>Unit {q.data?.unit.unitNumber} is yours. Your agreement and receipt are in Storage.</Text>
+          <Text color="ink2" style={{ textAlign: 'center' }}>Unit {q.data?.unit.unitNumber} is yours. Your contract and receipt are in Storage.</Text>
           <Button title="Go to my unit" onPress={() => router.replace('/(tabs)/storage')} style={{ alignSelf: 'stretch' }} />
         </>
       ) : state === 'needs_review' ? (
@@ -60,7 +60,7 @@ export default function BookingStatus() {
           <ActivityIndicator color={c.ink} size="large" />
           <View style={{ gap: 6 }}>
             <Text variant="h2" style={{ textAlign: 'center' }}>Confirming your payment…</Text>
-            <Text color="ink2" style={{ textAlign: 'center' }}>Preparing your agreement.</Text>
+            <Text color="ink2" style={{ textAlign: 'center' }}>Preparing your contract.</Text>
           </View>
         </>
       )}
