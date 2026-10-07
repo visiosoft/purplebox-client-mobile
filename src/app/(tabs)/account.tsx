@@ -16,7 +16,7 @@ import { aed, shortDate } from '@/lib/format';
 import { WHATSAPP } from '@/lib/contact';
 
 
-type TabKey = 'saved' | 'tagged';
+type TabKey = 'paid' | 'invoices' | 'saved';
 
 const initials = (name?: string) =>
   (name && !/^[+\d\s()-]+$/.test(name) ? name : 'PB').split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('');
@@ -27,12 +27,16 @@ export default function ProfileTab() {
   const { c } = useTheme();
   const { customer, logout } = useAuth();
   const { theme, setTheme, reminders, setReminders } = usePrefs();
-  const [tab, setTab] = useState<TabKey>('saved');
+  const [tab, setTab] = useState<TabKey>('paid');
   const [now] = useState(Date.now);
 
   const contracts = useQuery({ queryKey: ['contracts'], queryFn: storageApi.contracts });
   const documents = useQuery({ queryKey: ['documents'], queryFn: storageApi.documents });
   const invoices = useQuery({ queryKey: ['invoices'], queryFn: storageApi.invoices });
+  const payments = useQuery({ queryKey: ['payments'], queryFn: storageApi.payments });
+  const paidTotal = (payments.data ?? []).reduce((sum, p) => sum + p.amount, 0);
+  const paidInvoices = (invoices.data ?? []).filter((i) => i.status === 'paid');
+  const openInvoices = (invoices.data ?? []).filter((i) => i.status !== 'paid');
 
   const units = (contracts.data ?? []).filter((k) => k.status !== 'ended');
   const docs = useMemo(() => {
@@ -57,7 +61,7 @@ export default function ProfileTab() {
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: space.gutter, paddingBottom: 130, gap: 14 }} showsVerticalScrollIndicator={false}>
         {/* hero: warm tan card, like a portrait fading into the page */}
         <View style={{ borderRadius: radius.hero, overflow: 'hidden', padding: 16, paddingBottom: 22 }}>
-          <Svg style={StyleSheet.absoluteFill}>
+          <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
             <Defs>
               <LinearGradient id="pb-hero" x1="0" y1="0" x2="0" y2="1">
                 <Stop offset="0" stopColor="#E9D8C4" />
@@ -114,18 +118,44 @@ export default function ProfileTab() {
 
         <Button title={units.length ? 'Book another unit' : 'Book a unit'} onPress={() => router.push('/book')} />
 
-        <View style={{ backgroundColor: c.sf, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 6 }}>
-          <Row leading={<RowIcon icon={IdCard} />} title="ID verification" sub="Emirates ID or passport" onPress={() => router.push('/id-upload')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
-          <Row leading={<RowIcon icon={Link2} />} title="I already rent with PurpleBox" sub="Add an existing unit to this account" onPress={() => router.push('/link-unit')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
-          <Row leading={<RowIcon icon={Bell} />} title="Booking reminders" sub="Up to 3 nudges if a booking isn’t finished"
-            right={<Switch value={reminders} onValueChange={setReminders} trackColor={{ true: c.br }} />} />
-          <Row leading={<RowIcon icon={MessageCircle} />} title="Chat with us" sub="WhatsApp, 7 days a week" onPress={() => Linking.openURL(WHATSAPP)} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
-        </View>
-
         <Segmented value={tab} onChange={setTab}
-          options={[{ value: 'saved', label: 'Documents' }, { value: 'tagged', label: 'Invoices' }]} />
+          options={[{ value: 'paid', label: 'Payments' }, { value: 'invoices', label: 'Invoices' }, { value: 'saved', label: 'Documents' }]} />
 
-        {tab === 'saved' ? (
+        {tab === 'paid' ? (
+          <>
+            <View style={{ backgroundColor: c.dk, borderRadius: radius.hero, padding: 20, gap: 4 }}>
+              <Text variant="meta" color="onDk2">Total paid</Text>
+              <Text variant="h1" color="onDk">{aed(paidTotal)}</Text>
+              <Text variant="meta" color="onDk3">{(payments.data ?? []).length} payment{(payments.data ?? []).length === 1 ? '' : 's'} · {paidInvoices.length} invoice{paidInvoices.length === 1 ? '' : 's'} settled</Text>
+            </View>
+            <View style={{ backgroundColor: c.sf, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 6 }}>
+              {payments.isLoading ? <Text color="ink2" style={{ paddingVertical: 14, textAlign: 'center' }}>Loading…</Text> : null}
+              {!payments.isLoading && (payments.data ?? []).length === 0 ? <Text color="ink2" style={{ paddingVertical: 14, textAlign: 'center' }}>No payments yet.</Text> : null}
+              {(payments.data ?? []).map((p) => (
+                <Row key={p.id} leading={<RowIcon icon={Receipt} />} title={aed(p.amount)}
+                  sub={`${shortDate(p.paidDate)} · ${p.contractNo}${p.method ? ` · ${p.method}` : ''}`}
+                  onPress={() => openDocument({ href: `/customer-portal/storage/payments/${p.id}/receipt`, title: 'Receipt' }).catch((e) => Alert.alert('Receipt', e.message))}
+                  right={<StatusChip label="Paid" tone="ok" />} />
+              ))}
+            </View>
+          </>
+        ) : tab === 'invoices' ? (
+          <>
+            {([['Paid', paidInvoices], ['Open', openInvoices]] as const).map(([label, list]) => list.length ? (
+              <View key={label} style={{ backgroundColor: c.sf, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 6 }}>
+                <Text variant="overline" color="ink3" style={{ marginTop: 10 }}>{label.toUpperCase()} · {list.length}</Text>
+                {list.map((i) => (
+                  <Row key={i.id} leading={<RowIcon icon={FileText} />} title={i.invoiceNo}
+                    sub={`${aed(i.total)} · ${i.status === 'paid' ? `issued ${shortDate(i.invoiceDate)}` : `due ${shortDate(i.dueDate)}`}`}
+                    onPress={() => openDocument({ href: `/customer-portal/storage/invoices/${i.id}/pdf`, title: i.invoiceNo }).catch((e) => Alert.alert('Invoice', e.message))}
+                    right={<StatusChip label={i.status} tone={invoiceTone(i.status)} />} />
+                ))}
+              </View>
+            ) : null)}
+            {!invoices.isLoading && (invoices.data ?? []).length === 0 ? <Text color="ink2" style={{ textAlign: 'center' }}>No invoices yet.</Text> : null}
+            {openInvoices.length ? <Button title="Go to Payments to pay" variant="soft" onPress={() => router.navigate('/(tabs)/payments')} /> : null}
+          </>
+        ) : (
           <View style={{ backgroundColor: c.sf, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 6 }}>
             {docs.length === 0 ? <Text color="ink2" style={{ paddingVertical: 14, textAlign: 'center' }}>No documents yet.</Text> : null}
             {docs.map((d) => (
@@ -135,16 +165,15 @@ export default function ProfileTab() {
                 right={d.amount !== undefined ? <Text variant="meta" color="ink">{aed(d.amount)}</Text> : undefined} />
             ))}
           </View>
-        ) : (
-          <View style={{ backgroundColor: c.dk, borderRadius: radius.hero, paddingHorizontal: 18, paddingVertical: 8 }}>
-            {(invoices.data ?? []).length === 0 ? <Text color="onDk2" style={{ paddingVertical: 14, textAlign: 'center' }}>No invoices yet.</Text> : null}
-            {(invoices.data ?? []).map((i) => (
-              <Row key={i.id} dark leading={<RowIcon icon={FileText} dark />} title={i.invoiceNo} sub={`${aed(i.total)} · due ${shortDate(i.dueDate)}`}
-                onPress={() => router.push('/(tabs)/payments')}
-                right={<StatusChip label={i.status} tone={invoiceTone(i.status)} />} />
-            ))}
-          </View>
         )}
+
+        <View style={{ backgroundColor: c.sf, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 6 }}>
+          <Row leading={<RowIcon icon={IdCard} />} title="ID verification" sub="Emirates ID or passport" onPress={() => router.push('/id-upload')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
+          <Row leading={<RowIcon icon={Link2} />} title="I already rent with PurpleBox" sub="Add an existing unit to this account" onPress={() => router.push('/link-unit')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
+          <Row leading={<RowIcon icon={Bell} />} title="Booking reminders" sub="Up to 3 nudges if a booking isn’t finished"
+            right={<Switch value={reminders} onValueChange={setReminders} trackColor={{ true: c.br }} />} />
+          <Row leading={<RowIcon icon={MessageCircle} />} title="Chat with us" sub="WhatsApp, 7 days a week" onPress={() => Linking.openURL(WHATSAPP)} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
+        </View>
       </ScrollView>
     </View>
   );

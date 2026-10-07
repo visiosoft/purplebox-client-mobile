@@ -88,7 +88,7 @@ export default function PaymentsTab() {
               {paid.length === 0 ? <Text color="onDk2">No payments yet.</Text> : null}
               {paid.map((p) => (
                 <Row key={p.id} dark leading={<RowIcon icon={CreditCard} dark />} title={aed(p.amount)} sub={`${shortDate(p.paidDate)} · ${p.contractNo}`}
-                  onPress={() => openDocument({ href: `/customer-portal/storage/payments/${p.id}/receipt`, title: `receipt-${p.id}` }).catch((e) => Alert.alert('Receipt', e.message))}
+                  onPress={() => openDocument({ href: `/customer-portal/storage/payments/${p.id}/receipt`, title: 'Receipt' }).catch((e) => Alert.alert('Receipt', e.message))}
                   right={<Text variant="meta" color="onDk3" style={{ textTransform: 'capitalize' }}>{p.method || 'Receipt'}</Text>} />
               ))}
             </View>
