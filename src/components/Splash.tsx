@@ -1,41 +1,118 @@
 import { useEffect, useState } from 'react';
-import { StyleSheet } from 'react-native';
-import { Image } from 'expo-image';
-import Animated, { Easing, runOnJS, useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import Svg, { Ellipse, Path, Polygon } from 'react-native-svg';
+import Animated, {
+  Easing, runOnJS, useAnimatedStyle, useSharedValue, withDelay, withSequence, withTiming, type SharedValue,
+} from 'react-native-reanimated';
 import { fonts } from '@/theme/tokens';
 
-const BRAND = '#5B2BC9'; // matches the native splash in app.json, so the hand-off is seamless
-const SHOW_MS = 1500;
+const BRAND = '#5B2BC9'; // same as the native splash in app.json, so the hand-off is seamless
+const SKY = 'rgba(255,255,255,0.15)';
+const HOLD_MS = 3200; // when the fade-out starts
 
-/** Branded intro that sits over the first screen for a moment, then fades away. */
+/** Dubai silhouette: Burj Al Arab, Burj Khalifa, the Dubai Frame and a row of towers. Baseline at y=160. */
+function Skyline({ width }: { width: number }) {
+  return (
+    <Svg width={width} height={(width * 160) / 360} viewBox="0 0 360 160">
+      <Path fill={SKY} d="M0 160V118h18v-14h16v22h14v-30h20v40h12V160z" />
+      {/* Dubai Frame: two legs and a bar across the top */}
+      <Path fill={SKY} fillRule="evenodd" d="M100 160V96h32v64zM108 160v-56h16v56z" />
+      {/* Burj Khalifa: stepped, tapering to a spire */}
+      <Path fill={SKY} d="M174 160V96h5V74h5V54h4V26h3L192 0l2 26h3v28h4v20h5v22h5v64z" />
+      <Path fill={SKY} d="M214 160v-46h16v-22h14v34h10v34z" />
+      {/* Burj Al Arab: the sail */}
+      <Path fill={SKY} d="M268 160C270 112 290 76 306 52v-14l1 14c-2 30 2 72 2 108z" />
+      <Path fill={SKY} d="M312 160v-38h16v-18h14v30h18v26z" />
+    </Svg>
+  );
+}
+
+/** Lilac cube in two pieces (body and lid) so the lid can pop open once it lands. */
+function Cube() {
+  return (
+    <View style={{ width: 120, height: 120 }}>
+      <Svg width={120} height={120} viewBox="0 0 120 120" style={StyleSheet.absoluteFill}>
+        <Polygon points="10,35 60,60 60,115 10,90" fill="#C9B2FA" />
+        <Polygon points="110,35 60,60 60,115 110,90" fill="#9F7FEF" />
+        <Polygon points="20,52 48,66 48,86 20,72" fill="#F8D45C" />
+      </Svg>
+    </View>
+  );
+}
+function Lid({ lift }: { lift: SharedValue<number> }) {
+  const style = useAnimatedStyle(() => ({ transform: [{ translateY: lift.value }] }));
+  return (
+    <Animated.View style={[StyleSheet.absoluteFill, style]}>
+      <Svg width={120} height={120} viewBox="0 0 120 120">
+        <Polygon points="60,10 110,35 60,60 10,35" fill="#F3ECFF" />
+      </Svg>
+    </Animated.View>
+  );
+}
+
+/** Branded intro over the first screen: the skyline rises, a box drops in and opens, the name appears, then it fades away. */
 export function Splash() {
+  const { width } = useWindowDimensions();
   const [visible, setVisible] = useState(true);
   const fade = useSharedValue(1);
-  const pop = useSharedValue(0);
+  const sky = useSharedValue(0);
+  const drop = useSharedValue(-420);
+  const shadow = useSharedValue(0);
+  const lift = useSharedValue(0);
+  const name = useSharedValue(0);
+  const tag = useSharedValue(0);
+  const line = useSharedValue(0);
 
   useEffect(() => {
-    pop.value = withTiming(1, { duration: 700, easing: Easing.out(Easing.cubic) });
-    fade.value = withDelay(SHOW_MS, withTiming(0, { duration: 450 }, (done) => { if (done) runOnJS(setVisible)(false); }));
-  }, [fade, pop]);
+    sky.value = withTiming(1, { duration: 900, easing: Easing.out(Easing.cubic) });
+    drop.value = withDelay(500, withTiming(0, { duration: 900, easing: Easing.out(Easing.bounce) }));
+    shadow.value = withDelay(500, withTiming(1, { duration: 900, easing: Easing.in(Easing.quad) }));
+    lift.value = withDelay(1550, withSequence(withTiming(-16, { duration: 220, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: 380, easing: Easing.out(Easing.bounce) })));
+    name.value = withDelay(1700, withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) }));
+    tag.value = withDelay(2000, withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) }));
+    line.value = withDelay(2200, withTiming(1, { duration: 600, easing: Easing.out(Easing.cubic) }));
+    fade.value = withDelay(HOLD_MS, withTiming(0, { duration: 450 }, (done) => { if (done) runOnJS(setVisible)(false); }));
+  }, [fade, sky, drop, shadow, lift, name, tag, line]);
 
   const wrap = useAnimatedStyle(() => ({ opacity: fade.value }));
-  const logo = useAnimatedStyle(() => ({ opacity: pop.value, transform: [{ scale: 0.8 + 0.2 * pop.value }] }));
+  const skyStyle = useAnimatedStyle(() => ({ opacity: sky.value, transform: [{ translateY: (1 - sky.value) * 60 }] }));
+  const boxStyle = useAnimatedStyle(() => ({ transform: [{ translateY: drop.value }] }));
+  const shadowStyle = useAnimatedStyle(() => ({ opacity: 0.28 * shadow.value, transform: [{ scaleX: 0.4 + 0.6 * shadow.value }] }));
+  const nameStyle = useAnimatedStyle(() => ({ opacity: name.value, transform: [{ translateY: (1 - name.value) * 14 }] }));
+  const tagStyle = useAnimatedStyle(() => ({ opacity: tag.value, transform: [{ translateY: (1 - tag.value) * 10 }] }));
+  const lineStyle = useAnimatedStyle(() => ({ opacity: line.value, transform: [{ scaleX: line.value }] }));
 
   if (!visible) return null;
   return (
     <Animated.View pointerEvents="auto" style={[StyleSheet.absoluteFill, styles.wrap, wrap]}>
-      <Animated.View style={[styles.center, logo]}>
-        <Image source={require('../../assets/images/splash-icon.png')} style={{ width: 96, height: 96 }} contentFit="contain" />
-        <Animated.Text style={styles.word}>PurpleBox</Animated.Text>
-        <Animated.Text style={styles.tag}>Self-storage, made simple</Animated.Text>
+      <Animated.View style={[styles.sky, skyStyle]}>
+        <Skyline width={width} />
       </Animated.View>
+
+      <View style={styles.center}>
+        <View style={{ width: 120, height: 130 }}>
+          <Animated.View style={[styles.shadow, shadowStyle]}>
+            <Svg width={90} height={14}><Ellipse cx={45} cy={7} rx={45} ry={7} fill="#1B0B4D" /></Svg>
+          </Animated.View>
+          <Animated.View style={[{ width: 120, height: 120 }, boxStyle]}>
+            <Cube />
+            <Lid lift={lift} />
+          </Animated.View>
+        </View>
+        <Animated.Text style={[styles.word, nameStyle]}>PurpleBox</Animated.Text>
+        <Animated.Text style={[styles.tag, tagStyle]}>STORAGE IN DUBAI</Animated.Text>
+        <Animated.View style={[styles.line, lineStyle]} />
+      </View>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { backgroundColor: BRAND, alignItems: 'center', justifyContent: 'center', zIndex: 100 },
-  center: { alignItems: 'center', gap: 10 },
-  word: { fontFamily: fonts.light, fontSize: 38, color: '#FFFFFF', letterSpacing: -1 },
-  tag: { fontFamily: fonts.light, fontSize: 15, color: 'rgba(255,255,255,0.75)' },
+  wrap: { backgroundColor: BRAND, zIndex: 100 },
+  sky: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+  center: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', gap: 6, paddingBottom: 60 },
+  shadow: { position: 'absolute', bottom: 0, alignSelf: 'center' },
+  word: { fontFamily: fonts.light, fontSize: 42, color: '#FFFFFF', letterSpacing: -1.2, marginTop: 10 },
+  tag: { fontFamily: fonts.regular, fontSize: 13, color: 'rgba(255,255,255,0.8)', letterSpacing: 4 },
+  line: { width: 56, height: 3, borderRadius: 2, backgroundColor: '#F8D45C', marginTop: 10 },
 });
