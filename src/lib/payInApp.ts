@@ -8,17 +8,25 @@ export type PayResult = 'paid' | 'canceled' | 'handed-off';
 
 const MERCHANT_ID = process.env.EXPO_PUBLIC_STRIPE_MERCHANT_ID; // Apple Pay, once set up in Stripe + the Apple developer account
 
-/** Stripe's page, shown inside the app (app/pay.tsx) instead of sending people out to a browser. */
+/**
+ * Stripe's checkout, shown inside the app (app/pay.tsx) instead of sending people out to a browser. Prefers Stripe's
+ * embedded card form (server `embedded` mode); if the server answers with a hosted URL instead, shows that page.
+ */
 async function inAppCheckoutPage(t: PayTarget): Promise<PayResult> {
-  const url = await payApi.hostedUrl(t);
-  router.push({ pathname: '/pay', params: { url, kind: t.kind, id: t.id } });
+  const r = await payApi.embedded(t);
+  if (r.clientSecret && r.publishableKey) {
+    router.push({ pathname: '/pay', params: { clientSecret: r.clientSecret, publishableKey: r.publishableKey, kind: t.kind, id: t.id } });
+  } else {
+    const url = r.url ?? (await payApi.hostedUrl(t));
+    router.push({ pathname: '/pay', params: { url, kind: t.kind, id: t.id } });
+  }
   return 'handed-off';
 }
 
 /**
  * Pay without leaving the app. The preferred way is Stripe's payment sheet (cards, Apple Pay, Google Pay), which needs
  * the server to answer `POST …/pay-sheet` with a PaymentIntent client secret. Until it does (404/405), this falls back to
- * showing Stripe's hosted Checkout page inside the app. The server still confirms payment itself by webhook.
+ * Stripe's embedded card form inside the app (already supported by the server). The server still confirms payment itself by webhook.
  */
 export async function payInApp(t: PayTarget & { label?: string }): Promise<PayResult> {
   let s;

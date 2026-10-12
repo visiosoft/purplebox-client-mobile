@@ -27,6 +27,13 @@ export type Home = {
 };
 export type DocItem = { id: string; kind: 'agreement' | 'invoice' | 'receipt'; title: string; status?: string; date?: string; amount?: number; href: string };
 export type Documents = { agreements: DocItem[]; invoices: DocItem[]; receipts: DocItem[] };
+/** Zoho Books billing for this customer, matched on the phone/email Zoho holds for them (served by /billing). */
+export type ZohoInvoice = { id: string; number: string; date: string; dueDate: string; total: number; balance: number; status: string; url: string };
+export type ZohoPayment = { id: string; number: string; date: string; amount: number; mode: string; reference: string; invoiceNumbers: string };
+export type Billing = {
+  configured: boolean; invoices: ZohoInvoice[]; payments: ZohoPayment[];
+  totals: { invoiced: number; paid: number; outstanding: number };
+};
 export type PaymentRow = { id: string; amount: number; paidDate: string; method: string; contractNo: string };
 
 export const storageApi = {
@@ -35,6 +42,7 @@ export const storageApi = {
   invoices: () => api<Invoice[]>(`${BASE}/invoices`),
   invoice: (id: string) => api<Invoice>(`${BASE}/invoices/${id}`),
   payments: () => api<PaymentRow[]>(`${BASE}/payments`),
+  billing: () => api<Billing>(`${BASE}/billing`),
   documents: () => api<Documents>(`${BASE}/documents`),
   pay: (id: string) => api<{ url: string; balanceDue: number }>(`${BASE}/invoices/${id}/pay`, { method: 'POST', body: {} }),
   checkoutChange: (id: string, body: { action: 'extend'; months: 6 | 12 } | { action: 'move_out_early'; date: string }) =>

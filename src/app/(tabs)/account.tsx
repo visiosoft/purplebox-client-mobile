@@ -6,8 +6,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import { Bell, ChevronRight, FileText, IdCard, Link2, MessageCircle, MoreHorizontal, Package, Pencil, Receipt } from 'lucide-react-native';
 import { Backdrop, Button, IconButton, MenuButton, Text } from '@/components/ui';
-import { MetricPills, Row, RowIcon, Segmented, StatusChip, invoiceTone } from '@/components/bits';
+import { MetricPills, Row, RowIcon, Segmented, StatusChip } from '@/components/bits';
 import { openDocument, storageApi } from '@/api/storage';
+import { useBilling } from '@/hooks/useBilling';
 import { useAuth } from '@/store/auth';
 import { usePrefs } from '@/store/prefs';
 import { useTheme } from '@/theme/useTheme';
@@ -32,11 +33,10 @@ export default function ProfileTab() {
 
   const contracts = useQuery({ queryKey: ['contracts'], queryFn: storageApi.contracts });
   const documents = useQuery({ queryKey: ['documents'], queryFn: storageApi.documents });
-  const invoices = useQuery({ queryKey: ['invoices'], queryFn: storageApi.invoices });
-  const payments = useQuery({ queryKey: ['payments'], queryFn: storageApi.payments });
-  const paidTotal = (payments.data ?? []).reduce((sum, p) => sum + p.amount, 0);
-  const paidInvoices = (invoices.data ?? []).filter((i) => i.status === 'paid');
-  const openInvoices = (invoices.data ?? []).filter((i) => i.status !== 'paid');
+  const billing = useBilling();
+  const paidTotal = billing.totalPaid;
+  const paidInvoices = billing.paid;
+  const openInvoices = [...billing.overdue, ...billing.upcoming];
 
   const units = (contracts.data ?? []).filter((k) => k.status !== 'ended');
   const docs = useMemo(() => {
@@ -126,15 +126,15 @@ export default function ProfileTab() {
             <View style={{ backgroundColor: c.dk, borderRadius: radius.hero, padding: 20, gap: 4 }}>
               <Text variant="meta" color="onDk2">Total paid</Text>
               <Text variant="h1" color="onDk">{aed(paidTotal)}</Text>
-              <Text variant="meta" color="onDk3">{(payments.data ?? []).length} payment{(payments.data ?? []).length === 1 ? '' : 's'} · {paidInvoices.length} invoice{paidInvoices.length === 1 ? '' : 's'} settled</Text>
+              <Text variant="meta" color="onDk3">{billing.payments.length} payment{billing.payments.length === 1 ? '' : 's'} · {paidInvoices.length} invoice{paidInvoices.length === 1 ? '' : 's'} settled</Text>
             </View>
             <View style={{ backgroundColor: c.sf, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 6 }}>
-              {payments.isLoading ? <Text color="ink2" style={{ paddingVertical: 14, textAlign: 'center' }}>Loading…</Text> : null}
-              {!payments.isLoading && (payments.data ?? []).length === 0 ? <Text color="ink2" style={{ paddingVertical: 14, textAlign: 'center' }}>No payments yet.</Text> : null}
-              {(payments.data ?? []).map((p) => (
+              {billing.loading ? <Text color="ink2" style={{ paddingVertical: 14, textAlign: 'center' }}>Loading…</Text> : null}
+              {!billing.loading && billing.payments.length === 0 ? <Text color="ink2" style={{ paddingVertical: 14, textAlign: 'center' }}>No payments yet.</Text> : null}
+              {billing.payments.map((p) => (
                 <Row key={p.id} leading={<RowIcon icon={Receipt} />} title={aed(p.amount)}
-                  sub={`${shortDate(p.paidDate)} · ${p.contractNo}${p.method ? ` · ${p.method}` : ''}`}
-                  onPress={() => openDocument({ href: `/customer-portal/storage/payments/${p.id}/receipt`, title: 'Receipt' }).catch((e) => Alert.alert('Receipt', e.message))}
+                  sub={`${shortDate(p.date)}${p.invoiceNumbers ? ` · ${p.invoiceNumbers}` : ''}${p.method ? ` · ${p.method}` : ''}`}
+                  onPress={p.href ? () => openDocument({ href: p.href!, title: 'Receipt' }).catch((e) => Alert.alert('Receipt', e.message)) : undefined}
                   right={<StatusChip label="Paid" tone="ok" />} />
               ))}
             </View>
@@ -145,14 +145,14 @@ export default function ProfileTab() {
               <View key={label} style={{ backgroundColor: c.sf, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 6 }}>
                 <Text variant="overline" color="ink3" style={{ marginTop: 10 }}>{label.toUpperCase()} · {list.length}</Text>
                 {list.map((i) => (
-                  <Row key={i.id} leading={<RowIcon icon={FileText} />} title={i.invoiceNo}
-                    sub={`${aed(i.total)} · ${i.status === 'paid' ? `issued ${shortDate(i.invoiceDate)}` : `due ${shortDate(i.dueDate)}`}`}
-                    onPress={() => openDocument({ href: `/customer-portal/storage/invoices/${i.id}/pdf`, title: i.invoiceNo }).catch((e) => Alert.alert('Invoice', e.message))}
-                    right={<StatusChip label={i.status} tone={invoiceTone(i.status)} />} />
+                  <Row key={i.id} leading={<RowIcon icon={FileText} />} title={i.number}
+                    sub={`${aed(i.total)} · ${i.state === 'paid' ? `issued ${shortDate(i.date)}` : `due ${shortDate(i.dueDate)}`}`}
+                    onPress={() => openDocument({ href: i.pdfHref, title: i.number }).catch((e) => Alert.alert('Invoice', e.message))}
+                    right={<StatusChip label={i.state === 'paid' ? 'Paid' : i.state === 'overdue' ? 'Overdue' : 'Upcoming'} tone={i.state === 'paid' ? 'ok' : i.state === 'overdue' ? 'err' : 'warn'} />} />
                 ))}
               </View>
             ) : null)}
-            {!invoices.isLoading && (invoices.data ?? []).length === 0 ? <Text color="ink2" style={{ textAlign: 'center' }}>No invoices yet.</Text> : null}
+            {!billing.loading && paidInvoices.length + openInvoices.length === 0 ? <Text color="ink2" style={{ textAlign: 'center' }}>No invoices yet.</Text> : null}
             {openInvoices.length ? <Button title="Go to Payments to pay" variant="soft" onPress={() => router.navigate('/(tabs)/payments')} /> : null}
           </>
         ) : (

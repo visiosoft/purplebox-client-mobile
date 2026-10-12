@@ -1,100 +1,128 @@
 import { useMemo, useState } from 'react';
-import { Alert, View } from 'react-native';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Alert, Linking, View } from 'react-native';
+import { useMutation } from '@tanstack/react-query';
 import { CreditCard, FileText } from 'lucide-react-native';
 import { Button, Card, Screen, TabHeader, Text } from '@/components/ui';
-import { LineChart, MetricPills, Page, Row, RowIcon, Segmented, StatusChip, invoiceTone } from '@/components/bits';
-import { PaymentRow, openDocument, storageApi } from '@/api/storage';
+import { LineChart, MetricPills, Page, Row, RowIcon, Segmented, StatusChip } from '@/components/bits';
+import { openDocument } from '@/api/storage';
+import { BillInvoice, BillPayment, useBilling } from '@/hooks/useBilling';
 import { payInApp } from '@/lib/payInApp';
-import { aed, shortDate } from '@/lib/format';
+import { aed, daysUntil, shortDate } from '@/lib/format';
+import { WHATSAPP } from '@/lib/contact';
 
 /** Totals paid in each of the last six calendar months, oldest first. */
-function byMonth(payments: PaymentRow[]) {
+function byMonth(payments: BillPayment[]) {
   const now = new Date();
   const months = Array.from({ length: 6 }, (_, i) => new Date(now.getFullYear(), now.getMonth() - 5 + i, 1));
   return {
     labels: months.map((m) => m.toLocaleDateString('en-GB', { month: 'short' })),
     points: months.map((m) => payments
-      .filter((p) => { const d = new Date(p.paidDate); return d.getFullYear() === m.getFullYear() && d.getMonth() === m.getMonth(); })
+      .filter((p) => { const d = new Date(p.date); return d.getFullYear() === m.getFullYear() && d.getMonth() === m.getMonth(); })
       .reduce((s, p) => s + p.amount, 0)),
   };
 }
 
+const dueText = (i: BillInvoice) => {
+  const d = daysUntil(i.dueDate);
+  if (i.state === 'overdue') return `Overdue since ${shortDate(i.dueDate)}`;
+  if (d === 0) return 'Due today';
+  return d !== null && d <= 14 ? `Due in ${d} day${d === 1 ? '' : 's'} · ${shortDate(i.dueDate)}` : `Due ${shortDate(i.dueDate)}`;
+};
+
 export default function PaymentsTab() {
-  const qc = useQueryClient();
   const [tab, setTab] = useState<'due' | 'history'>('due');
-  const invoices = useQuery({ queryKey: ['invoices'], queryFn: storageApi.invoices });
-  const payments = useQuery({ queryKey: ['payments'], queryFn: storageApi.payments });
+  const b = useBilling();
 
-  const refresh = () => Promise.all(['home', 'invoices', 'payments', 'documents'].map((k) => qc.invalidateQueries({ queryKey: [k] })));
-
-  // Stripe confirms payment to the server by webhook; the app only opens the page, then re-reads.
+  // Stripe confirms payment to the server by webhook, which then updates Zoho Books; so look again shortly after.
   const pay = useMutation({
-    mutationFn: (id: string) => {
-      const inv = (invoices.data ?? []).find((i) => i.id === id);
-      return payInApp({ kind: 'invoice', id, label: inv ? `Pay ${aed(inv.balanceDue)}` : undefined });
+    mutationFn: (inv: BillInvoice) => {
+      if (!inv.payId) throw new Error('Online payment is not set up for this invoice yet. Please message us and we will send you a payment link.');
+      return payInApp({ kind: 'invoice', id: inv.payId, label: `Pay ${aed(inv.balance)}` });
     },
-    onSuccess: (r) => { if (r === 'paid') Alert.alert('Payment received', 'Thank you! Your receipt will appear in a moment.'); },
-    // the server hears from Stripe a moment after the sheet closes, so look again shortly as well
-    onSettled: () => { refresh(); setTimeout(refresh, 3000); },
-    onError: (e: Error) => Alert.alert('Payment', e.message),
+    onSuccess: (r) => { if (r === 'paid') Alert.alert('Payment received', 'Thank you! It will show under History in a moment.'); },
+    onSettled: () => { b.refetch(); setTimeout(b.refetch, 4000); },
+    onError: (e: Error) => Alert.alert('Payment', e.message, e.message.includes('message us') ? [{ text: 'WhatsApp', onPress: () => Linking.openURL(WHATSAPP) }, { text: 'OK' }] : undefined),
   });
 
-  const all = invoices.data ?? [];
-  const open = all.filter((i) => i.balanceDue > 0);
-  const total = open.reduce((s, i) => s + i.balanceDue, 0);
-  const paid = payments.data ?? [];
-  const chart = useMemo(() => byMonth(payments.data ?? []), [payments.data]);
+  const open = [...b.overdue, ...b.upcoming];
+  const chart = useMemo(() => byMonth(b.payments), [b.payments]);
+  const view = (i: BillInvoice) => openDocument({ href: i.pdfHref, title: i.number }).catch((e) => Alert.alert('Invoice', e.message));
+
+  const invoiceRow = (i: BillInvoice) => (
+    <View key={i.id}>
+      <Row leading={<RowIcon icon={FileText} />} title={`${i.number} · ${aed(i.balance)}`} sub={dueText(i)} onPress={() => view(i)}
+        right={<StatusChip label={i.state === 'overdue' ? 'Overdue' : i.partial ? 'Part paid' : 'Upcoming'} tone={i.state === 'overdue' ? 'err' : 'warn'} />} />
+      <Button title={`Pay ${aed(i.balance)}`} variant={i.state === 'overdue' ? 'primary' : 'accent'} icon={CreditCard}
+        loading={pay.isPending && pay.variables?.id === i.id} disabled={pay.isPending} onPress={() => pay.mutate(i)} style={{ height: 46, marginBottom: 8 }} />
+    </View>
+  );
 
   return (
     <Screen>
       <TabHeader title="Payments" />
-      <Page loading={invoices.isLoading} error={invoices.error?.message} refreshing={invoices.isRefetching} onRefresh={refresh}>
+      <Page loading={b.loading} error={b.error} refreshing={b.refreshing} onRefresh={b.refetch}>
         <Card style={{ gap: 18 }}>
           <View style={{ gap: 2 }}>
             <Text variant="meta">Balance due</Text>
-            <Text variant="display">{aed(total)}</Text>
+            <Text variant="display">{aed(b.outstanding)}</Text>
+            {b.upcoming.length ? <Text variant="meta">Next: {aed(b.upcoming[0].balance)} on {shortDate(b.upcoming[0].dueDate)}</Text> : null}
           </View>
           <MetricPills items={[
-            { label: 'Open', value: `${open.length} invoice${open.length === 1 ? '' : 's'}`, tone: open.length ? 'accent' : 'light' },
-            { label: 'Overdue', value: String(all.filter((i) => i.status === 'overdue').length), tone: 'dark' },
-            { label: 'Paid', value: String(all.filter((i) => i.status === 'paid').length), tone: 'hatch' },
+            { label: 'Upcoming', value: String(b.upcoming.length), tone: b.upcoming.length ? 'accent' : 'light' },
+            { label: 'Overdue', value: String(b.overdue.length), tone: 'dark' },
+            { label: 'Paid', value: String(b.paid.length), tone: 'hatch' },
           ]} />
         </Card>
 
-        <Segmented value={tab} onChange={setTab} options={[{ value: 'due', label: 'Invoices' }, { value: 'history', label: 'History' }]} />
+        <Segmented value={tab} onChange={setTab} options={[{ value: 'due', label: 'To pay' }, { value: 'history', label: 'History' }]} />
 
         {tab === 'due' ? (
-          <Card style={{ paddingVertical: 10 }}>
-            {all.length === 0 ? <Text color="ink2" style={{ paddingVertical: 10 }}>No invoices yet.</Text> : null}
-            {all.map((i) => (
-              <View key={i.id}>
-                <Row leading={<RowIcon icon={FileText} />} title={i.invoiceNo} sub={`Due ${shortDate(i.dueDate)} · ${aed(i.total)}`}
-                  onPress={() => openDocument({ href: `/customer-portal/storage/invoices/${i.id}/pdf`, title: i.invoiceNo }).catch((e) => Alert.alert('Invoice', e.message))}
-                  right={<StatusChip label={i.status} tone={invoiceTone(i.status)} />} />
-                {i.balanceDue > 0 ? (
-                  <Button title={`Pay ${aed(i.balanceDue)}`} variant={i.status === 'overdue' ? 'primary' : 'accent'} icon={CreditCard}
-                    loading={pay.isPending && pay.variables === i.id} onPress={() => pay.mutate(i.id)} style={{ height: 46, marginBottom: 8 }} />
-                ) : null}
-              </View>
-            ))}
-          </Card>
+          <>
+            {b.overdue.length ? (
+              <Card style={{ paddingVertical: 10 }}>
+                <Text variant="overline" color="ink3" style={{ marginTop: 6 }}>OVERDUE · {b.overdue.length}</Text>
+                {b.overdue.map(invoiceRow)}
+              </Card>
+            ) : null}
+            {b.upcoming.length ? (
+              <Card style={{ paddingVertical: 10 }}>
+                <Text variant="overline" color="ink3" style={{ marginTop: 6 }}>UPCOMING · {b.upcoming.length}</Text>
+                {b.upcoming.map(invoiceRow)}
+              </Card>
+            ) : null}
+            {open.length === 0 ? (
+              <Card style={{ gap: 6 }}>
+                <Text variant="h3">You’re all paid up</Text>
+                <Text color="ink2">New invoices appear here as soon as we issue them.</Text>
+              </Card>
+            ) : null}
+          </>
         ) : (
-          <Card variant="dark" style={{ gap: 14 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
-              <Text variant="title" color="onDk">Payment history</Text>
-              <Text variant="h1" color="onDk">{paid.length}</Text>
-            </View>
-            {paid.length ? <LineChart points={chart.points} labels={chart.labels} format={aed} /> : null}
-            <View>
-              {paid.length === 0 ? <Text color="onDk2">No payments yet.</Text> : null}
-              {paid.map((p) => (
-                <Row key={p.id} dark leading={<RowIcon icon={CreditCard} dark />} title={aed(p.amount)} sub={`${shortDate(p.paidDate)} · ${p.contractNo}`}
-                  onPress={() => openDocument({ href: `/customer-portal/storage/payments/${p.id}/receipt`, title: 'Receipt' }).catch((e) => Alert.alert('Receipt', e.message))}
-                  right={<Text variant="meta" color="onDk3" style={{ textTransform: 'capitalize' }}>{p.method || 'Receipt'}</Text>} />
+          <>
+            <Card variant="dark" style={{ gap: 14 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                <Text variant="title" color="onDk">Total paid</Text>
+                <Text variant="h1" color="onDk">{aed(b.totalPaid)}</Text>
+              </View>
+              {b.payments.length ? <LineChart points={chart.points} labels={chart.labels} format={aed} /> : null}
+              {b.payments.length === 0 ? <Text color="onDk2">No payments yet.</Text> : null}
+              {b.payments.map((p) => (
+                <Row key={p.id} dark leading={<RowIcon icon={CreditCard} dark />} title={aed(p.amount)}
+                  sub={`${shortDate(p.date)}${p.invoiceNumbers ? ` · ${p.invoiceNumbers}` : ''}`}
+                  onPress={p.href ? () => openDocument({ href: p.href!, title: 'Receipt' }).catch((e) => Alert.alert('Receipt', e.message)) : undefined}
+                  right={<Text variant="meta" color="onDk3" style={{ textTransform: 'capitalize' }}>{p.method || 'Paid'}</Text>} />
               ))}
-            </View>
-          </Card>
+            </Card>
+            {b.paid.length ? (
+              <Card style={{ paddingVertical: 10 }}>
+                <Text variant="overline" color="ink3" style={{ marginTop: 6 }}>PAID INVOICES · {b.paid.length}</Text>
+                {b.paid.map((i) => (
+                  <Row key={i.id} leading={<RowIcon icon={FileText} />} title={`${i.number} · ${aed(i.total)}`} sub={`Issued ${shortDate(i.date)}`} onPress={() => view(i)}
+                    right={<StatusChip label="Paid" tone="ok" />} />
+                ))}
+              </Card>
+            ) : null}
+          </>
         )}
       </Page>
     </Screen>

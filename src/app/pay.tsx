@@ -1,33 +1,57 @@
+import { useState } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { X } from 'lucide-react-native';
-import { IconButton, Screen, Text } from '@/components/ui';
+import { Check, X } from 'lucide-react-native';
+import { Button, IconButton, Screen, Text } from '@/components/ui';
 import { CheckoutWebView } from '@/components/CheckoutWebView';
+import { useTheme } from '@/theme/useTheme';
 
-// Stripe's secure payment page, shown inside the app. Stripe tells the server when a payment clears, so when the
-// page finishes (or is closed) we just go and look at where things stand.
+// Stripe's secure payment form, shown inside the app. Stripe tells our server when a payment clears (the server then
+// updates the invoice and Zoho Books), so when the form finishes or is closed we just go and look at where things stand.
 export default function PayScreen() {
   const router = useRouter();
   const qc = useQueryClient();
-  const { url, kind, id } = useLocalSearchParams<{ url: string; kind: 'invoice' | 'booking'; id: string }>();
+  const { c } = useTheme();
+  const { url, clientSecret, publishableKey, kind, id } = useLocalSearchParams<{ url?: string; clientSecret?: string; publishableKey?: string; kind: 'invoice' | 'booking'; id: string }>();
+  const [paid, setPaid] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const done = () => {
-    if (kind === 'booking') router.replace({ pathname: '/book/status', params: { id } });
-    else {
-      ['home', 'invoices', 'payments', 'documents'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
-      setTimeout(() => ['home', 'invoices', 'payments'].forEach((k) => qc.invalidateQueries({ queryKey: [k] })), 3000);
-      router.back();
-    }
+  const refreshSoon = () => {
+    const go = () => ['billing', 'home', 'invoices', 'payments', 'documents'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+    go(); setTimeout(go, 4000);
   };
+  const leave = () => {
+    if (kind === 'booking') router.replace({ pathname: '/book/status', params: { id } });
+    else { refreshSoon(); router.back(); }
+  };
+  const done = () => { setPaid(true); refreshSoon(); };
 
   return (
     <Screen style={{ paddingBottom: 16 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, marginBottom: 12 }}>
         <Text variant="h3">Secure payment</Text>
-        <IconButton icon={X} label="Close payment" onPress={done} />
+        <IconButton icon={X} label="Close payment" onPress={leave} />
       </View>
-      <CheckoutWebView url={url} onDone={done} />
+      {paid ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+          <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: c.ac, alignItems: 'center', justifyContent: 'center' }}>
+            <Check color={c.acInk} size={40} strokeWidth={1.8} />
+          </View>
+          <Text variant="h1">Payment received</Text>
+          <Text color="ink2" style={{ textAlign: 'center' }}>Thank you! It can take a moment to show on your invoices.</Text>
+          <Button title="Done" onPress={leave} style={{ alignSelf: 'stretch' }} />
+        </View>
+      ) : error ? (
+        <View style={{ gap: 12 }}>
+          <Text style={{ color: c.err }}>{error}</Text>
+          <Button title="Close" variant="soft" onPress={leave} />
+        </View>
+      ) : clientSecret && publishableKey ? (
+        <CheckoutWebView clientSecret={clientSecret} publishableKey={publishableKey} onDone={done} onError={setError} />
+      ) : (
+        <CheckoutWebView url={url!} onDone={leave} />
+      )}
     </Screen>
   );
 }
