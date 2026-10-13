@@ -4,12 +4,14 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-import { Bell, ChevronRight, CreditCard, FileText, FolderOpen, IdCard, Link2, UserCheck, Users, MessageCircle, MoreHorizontal, Package, Pencil, Receipt } from 'lucide-react-native';
+import { Bell, ScanFace, ChevronRight, CreditCard, FileText, FolderOpen, IdCard, Link2, UserCheck, Users, MessageCircle, MoreHorizontal, Package, Pencil, Receipt } from 'lucide-react-native';
 import { Backdrop, Button, IconButton, MenuButton, Text } from '@/components/ui';
 import { MetricPills, Row, RowIcon, Segmented, StatusChip } from '@/components/bits';
 import { openDocument, storageApi } from '@/api/storage';
 import { useBilling } from '@/hooks/useBilling';
 import { useProfile } from '@/hooks/useProfile';
+import { useBiometricInfo } from '@/hooks/useBiometricInfo';
+import { confirmIdentity } from '@/lib/biometrics';
 import { useAuth } from '@/store/auth';
 import { usePrefs } from '@/store/prefs';
 import { useTheme } from '@/theme/useTheme';
@@ -28,7 +30,7 @@ export default function ProfileTab() {
   const insets = useSafeAreaInsets();
   const { c } = useTheme();
   const { customer, logout } = useAuth();
-  const { theme, setTheme, reminders, setReminders } = usePrefs();
+  const { theme, setTheme, reminders, setReminders, biometrics, setBiometrics } = usePrefs();
   const [tab, setTab] = useState<TabKey>('paid');
   const [now] = useState(Date.now);
 
@@ -36,6 +38,7 @@ export default function ProfileTab() {
   const documents = useQuery({ queryKey: ['documents'], queryFn: storageApi.documents });
   const billing = useBilling();
   const profile = useProfile();
+  const bio = useBiometricInfo();
   const paidTotal = billing.totalPaid;
   const paidInvoices = billing.paid;
   const openInvoices = [...billing.overdue, ...billing.upcoming];
@@ -176,6 +179,13 @@ export default function ProfileTab() {
           <Row leading={<RowIcon icon={CreditCard} />} title="Auto-pay and saved card" sub="Pay invoices automatically" onPress={() => router.push('/autopay')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
           <Row leading={<RowIcon icon={IdCard} />} title="ID verification" sub="Emirates ID or passport" onPress={() => router.push('/id-upload')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
           <Row leading={<RowIcon icon={Link2} />} title="I already rent with PurpleBox" sub="Add an existing unit to this account" onPress={() => router.push('/link-unit')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
+          {bio.available ? (
+            <Row leading={<RowIcon icon={ScanFace} />} title={`Unlock with ${bio.label}`} sub="Asked when you open the app, and before your ID and card"
+              right={<Switch value={biometrics} onValueChange={async (on) => {
+                // Changing it either way needs a successful check, so a borrowed phone cannot switch the lock off (or on for another face).
+                if (await confirmIdentity(`${on ? 'Turn on' : 'Turn off'} ${bio.label} for PurpleBox`)) setBiometrics(on);
+              }} trackColor={{ true: c.br }} />} />
+          ) : null}
           <Row leading={<RowIcon icon={Bell} />} title="Booking reminders" sub="Up to 3 nudges if a booking isn’t finished"
             right={<Switch value={reminders} onValueChange={setReminders} trackColor={{ true: c.br }} />} />
           <Row leading={<RowIcon icon={MessageCircle} />} title="Chat with us" sub="WhatsApp, 7 days a week" onPress={() => Linking.openURL(WHATSAPP)} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />

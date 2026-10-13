@@ -3,6 +3,7 @@ import { Alert, Switch, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CreditCard, ShieldCheck, Trash2 } from 'lucide-react-native';
+import { BiometricGate } from '@/components/BiometricGate';
 import { Button, Card, Screen, Text, TopBar } from '@/components/ui';
 import { Page, StatusChip } from '@/components/bits';
 import { autopayApi } from '@/api/profile';
@@ -12,7 +13,7 @@ import { fonts } from '@/theme/tokens';
 const BRAND: Record<string, string> = { visa: 'Visa', mastercard: 'Mastercard', amex: 'American Express', discover: 'Discover', diners: 'Diners Club', jcb: 'JCB', unionpay: 'UnionPay' };
 
 // A saved card and the auto-pay switch. The card number is only ever typed into Stripe's own form; we keep the last four.
-export default function Autopay() {
+function AutopayScreen() {
   const router = useRouter();
   const qc = useQueryClient();
   const { c } = useTheme();
@@ -111,5 +112,13 @@ export default function Autopay() {
         </View>
       </Page>
     </Screen>
+  );
+}
+
+export default function Autopay() {
+  return (
+    <BiometricGate title="Auto-pay" reason="Unlock to manage your saved card.">
+      <AutopayScreen />
+    </BiometricGate>
   );
 }

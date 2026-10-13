@@ -11,6 +11,8 @@ import { useAuth, needsProfile } from '@/store/auth';
 import { Splash } from '@/components/Splash';
 import { Drawer, EdgeSwipe } from '@/components/Drawer';
 import { useBookingReminders } from '@/hooks/useBookingReminders';
+import { useAppLock } from '@/hooks/useAppLock';
+import { LockScreen } from '@/components/LockScreen';
 import { usePrefs } from '@/store/prefs';
 import { useRequests } from '@/store/requests';
 import { useTheme } from '@/theme/useTheme';
@@ -25,6 +27,7 @@ function Gate() {
   const { c, isDark } = useTheme();
   const promptSeen = usePrefs((s) => s.profilePromptSeen);
   useBookingReminders(!!customer && !needsProfile(customer));
+  useAppLock(!!customer);
 
   useEffect(() => {
     if (!ready) return;
@@ -70,6 +73,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <Gate />
+          <LockScreen />
           <Splash />
         </QueryClientProvider>
       </SafeAreaProvider>

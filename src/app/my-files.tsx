@@ -2,6 +2,7 @@ import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { FileImage, FileText, Plus, ShieldCheck } from 'lucide-react-native';
+import { BiometricGate } from '@/components/BiometricGate';
 import { Button, Card, Screen, Text, TopBar } from '@/components/ui';
 import { Page, Row, RowIcon, StatusChip } from '@/components/bits';
 import { FileItem, filesApi } from '@/api/profile';
@@ -9,7 +10,7 @@ import { shortDate } from '@/lib/format';
 import { useTheme } from '@/theme/useTheme';
 
 // The customer's own identity documents and anything the office has filed for them, from our Google Drive.
-export default function MyFiles() {
+function MyFilesScreen() {
   const router = useRouter();
   const { c } = useTheme();
   const q = useQuery({ queryKey: ['files'], queryFn: filesApi.list });
@@ -54,5 +55,13 @@ export default function MyFiles() {
         <Text variant="meta" style={{ textAlign: 'center' }}>Your ID is attached to your contract automatically, so you only upload it once.</Text>
       </Page>
     </Screen>
+  );
+}
+
+export default function MyFiles() {
+  return (
+    <BiometricGate title="My files" reason="Unlock to see your ID and documents.">
+      <MyFilesScreen />
+    </BiometricGate>
   );
 }

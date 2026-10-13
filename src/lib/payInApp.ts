@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import Constants from 'expo-constants';
 import { initPaymentSheet, initStripe, presentPaymentSheet } from '@stripe/stripe-react-native';
 import { ApiError } from '@/api/client';
 import { PayTarget, SaveCard, payApi } from '@/api/pay';
@@ -6,7 +7,8 @@ import { PayTarget, SaveCard, payApi } from '@/api/pay';
 /** paid: the sheet confirmed it. canceled: they closed it. handed-off: Stripe's page is open in the app and finishes the flow itself. */
 export type PayResult = 'paid' | 'canceled' | 'handed-off';
 
-const MERCHANT_ID = process.env.EXPO_PUBLIC_STRIPE_MERCHANT_ID; // Apple Pay, once set up in Stripe + the Apple developer account
+// Apple Pay turns on only when the build was made with APPLE_MERCHANT_ID (see app.config.js) and set up in Stripe.
+const MERCHANT_ID = ((Constants.expoConfig?.extra as { stripeMerchantId?: string } | undefined)?.stripeMerchantId || process.env.EXPO_PUBLIC_STRIPE_MERCHANT_ID) || undefined;
 
 /**
  * Stripe's checkout, shown inside the app (app/pay.tsx) instead of sending people out to a browser. Prefers Stripe's
@@ -38,7 +40,9 @@ export async function payInApp(t: PayTarget & SaveCard & { label?: string }): Pr
   }
 
   await initStripe({ publishableKey: s.publishableKey, urlScheme: 'purplebox', merchantIdentifier: MERCHANT_ID });
-  const customer = s.customerId && s.customerEphemeralKeySecret ? { customerId: s.customerId, customerEphemeralKeySecret: s.customerEphemeralKeySecret } : {};
+  // Saved cards in the sheet: a CustomerSession when the server sent one, the older ephemeral key otherwise.
+  const customer = s.customerId && s.customerSessionClientSecret ? { customerId: s.customerId, customerSessionClientSecret: s.customerSessionClientSecret }
+    : s.customerId && s.customerEphemeralKeySecret ? { customerId: s.customerId, customerEphemeralKeySecret: s.customerEphemeralKeySecret } : {};
   const init = await initPaymentSheet({
     merchantDisplayName: s.merchantDisplayName ?? 'PurpleBox Storage',
     paymentIntentClientSecret: s.paymentIntentClientSecret,

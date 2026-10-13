@@ -1,4 +1,5 @@
-import { Linking, Pressable, View } from 'react-native';
+import { useEffect } from 'react';
+import { Alert, Linking, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -9,6 +10,9 @@ import { Gauge, Meter, MetricPills, Page, Row, RowIcon, StatusChip } from '@/com
 import { BoxArt, Carousel, DealCard, PhotoBanner, PlanCard, SectionTitle, ServiceStrip, Tile, UnitCard, type UnitCardData } from '@/components/home';
 import { storageApi } from '@/api/storage';
 import { useProfile } from '@/hooks/useProfile';
+import { useBiometricInfo } from '@/hooks/useBiometricInfo';
+import { confirmIdentity } from '@/lib/biometrics';
+import { usePrefs } from '@/store/prefs';
 import { bookingApi } from '@/api/booking';
 import { useAuth } from '@/store/auth';
 import { REQUEST_LABEL, useRequests } from '@/store/requests';
@@ -33,6 +37,17 @@ export default function HomeTab() {
   const sizes = useQuery({ queryKey: ['sizes-home'], queryFn: () => bookingApi.sizes(today(), 1), staleTime: 5 * 60_000 });
   const requests = useRequests((s) => s.items);
   const profile = useProfile();
+  // Once, after the welcome checklist: offer Face ID / fingerprint, if this phone has it set up.
+  const bio = useBiometricInfo();
+  const { biometrics, biometricsAsked, profilePromptSeen, setBiometrics, markBiometricsAsked } = usePrefs();
+  useEffect(() => {
+    if (!bio.available || biometrics || biometricsAsked || !profilePromptSeen) return;
+    markBiometricsAsked();
+    Alert.alert(`Unlock with ${bio.label}?`, 'A quick check keeps your account, ID and payments private if someone else picks up your phone. You can change this in Account.', [
+      { text: 'Not now', style: 'cancel' },
+      { text: 'Turn on', onPress: async () => { if (await confirmIdentity(`Turn on ${bio.label} for PurpleBox`)) setBiometrics(true); } },
+    ]);
+  }, [bio.available, bio.label, biometrics, biometricsAsked, profilePromptSeen, markBiometricsAsked, setBiometrics]);
   const nextStep = profile.items.find((i) => !i.done);
 
   const home = q.data;

@@ -15,6 +15,8 @@ export type SheetParams = {
   merchantDisplayName?: string;
   customerId?: string;
   customerEphemeralKeySecret?: string;
+  /** Newer way to let the sheet show saved cards; preferred when present. */
+  customerSessionClientSecret?: string;
 };
 
 export const payApi = {
