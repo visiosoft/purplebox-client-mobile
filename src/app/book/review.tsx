@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Alert, View } from 'react-native';
-import * as WebBrowser from 'expo-web-browser';
+import { View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Clock, CreditCard } from 'lucide-react-native';
 import { Button, Card, Screen, Text, TopBar } from '@/components/ui';
 import { Page, Steps, StatusChip } from '@/components/bits';
@@ -37,16 +36,6 @@ export default function Review() {
   const mins = Math.floor(left / 60000);
   const secs = String(Math.floor((left % 60000) / 1000)).padStart(2, '0');
 
-  // Payment is confirmed to the server by Stripe, not by this app, so after the
-  // browser closes we just go and look at where the booking has got to.
-  const pay = useMutation({
-    mutationFn: async () => {
-      const { url } = await bookingApi.pay(id);
-      await WebBrowser.openBrowserAsync(url);
-    },
-    onSuccess: () => router.replace({ pathname: '/book/status', params: { id } }),
-    onError: (e) => Alert.alert('Payment', e.message),
-  });
 
   if (b && b.state !== 'held') {
     return (
@@ -92,7 +81,7 @@ export default function Review() {
               </View>
               <Text variant="meta" color="onDk3">The refundable advance is returned at the end of your rental.</Text>
             </Card>
-            <Button title={`Pay ${aed(b.pricing.totalWithFee)}`} variant="accent" icon={CreditCard} loading={pay.isPending} disabled={left === 0} onPress={() => pay.mutate()} />
+            <Button title={`Pay ${aed(b.pricing.totalWithFee)}`} variant="accent" icon={CreditCard} disabled={left === 0} onPress={() => router.push({ pathname: '/book/pay', params: { id } })} />
           </>
         ) : null}
       </Page>

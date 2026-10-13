@@ -1,22 +1,110 @@
-import { Linking, View } from 'react-native';
+import { Alert, Linking, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowUpRight, Bell, Clock, CreditCard, FileText, LogOut, MessageCircle, PlusCircle } from 'lucide-react-native';
+import {
+  ArrowUpRight, Bell, Boxes, Calculator, CalendarCheck, CalendarClock, CheckCircle2, Clock, CreditCard, FileText, MessageCircle, PackagePlus, Receipt, Truck,
+  type LucideIcon,
+} from 'lucide-react-native';
 import { Button, Card, IconButton, MenuButton, Screen, Text } from '@/components/ui';
-import { Gauge, MetricPills, Page, QuickActions, Row, RowIcon, StatusChip, invoiceTone } from '@/components/bits';
-import { storageApi } from '@/api/storage';
+import { Gauge, MetricPills, Page, Row, RowIcon, StatusChip, invoiceTone } from '@/components/bits';
+import { Contract, openDocument, storageApi } from '@/api/storage';
 import { bookingApi } from '@/api/booking';
+import { isOpen, servicesApi } from '@/api/services';
+import { RequestRow } from '@/components/service';
+import { useBilling } from '@/hooks/useBilling';
 import { useAuth } from '@/store/auth';
 import { REQUEST_LABEL, useRequests } from '@/store/requests';
 import { aed, daysUntil, monthlyRate, shortDate, termProgress } from '@/lib/format';
 import { WHATSAPP } from '@/lib/contact';
+import { useTheme } from '@/theme/useTheme';
+import { fonts, radius } from '@/theme/tokens';
+
+/** "My contract ··· All documents" */
+function SectionHead({ title, link, onPress }: { title: string; link?: string; onPress?: () => void }) {
+  const { c } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 6 }}>
+      <Text variant="h3">{title}</Text>
+      {link ? (
+        <Pressable onPress={onPress} hitSlop={10} accessibilityRole="link">
+          <Text style={{ fontFamily: fonts.medium, fontSize: 14, color: c.ink, textDecorationLine: 'underline' }}>{link}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+type Tile = { icon: LucideIcon; title: string; sub: string; onPress: () => void };
+
+/** Two-by-two grid of the things people come to the app to do. */
+function ActionTiles({ items }: { items: Tile[] }) {
+  const { c } = useTheme();
+  const rows = [items.slice(0, 2), items.slice(2, 4)];
+  return (
+    <View style={{ gap: 12 }}>
+      {rows.map((row, r) => (
+        <View key={r} style={{ flexDirection: 'row', gap: 12 }}>
+          {row.map((t) => (
+            <Pressable key={t.title} onPress={t.onPress} accessibilityRole="button" accessibilityLabel={t.title}
+              style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.7 : 1 })}>
+              <Card style={{ flex: 1, gap: 14, padding: 16 }}>
+                <View style={{ width: 44, height: 44, borderRadius: radius.tile, borderCurve: 'continuous', backgroundColor: c.acSoft, alignItems: 'center', justifyContent: 'center' }}>
+                  <t.icon color={c.ink} size={20} strokeWidth={1.6} />
+                </View>
+                <View style={{ gap: 2 }}>
+                  <Text variant="title" style={{ fontSize: 15 }}>{t.title}</Text>
+                  <Text variant="meta">{t.sub}</Text>
+                </View>
+              </Card>
+            </Pressable>
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** The agreement as a card: a little page thumbnail, its status, dates and a way to read it. */
+function ContractCard({ contract, onView, onSign }: { contract: Contract; onView: () => void; onSign: () => void }) {
+  const { c } = useTheme();
+  return (
+    <Card style={{ flexDirection: 'row', gap: 14, padding: 16 }}>
+      <View style={{ width: 64, height: 84, borderRadius: 10, backgroundColor: c.sf2, padding: 9, gap: 5, borderWidth: 1, borderColor: c.ln }}>
+        <View style={{ width: 14, height: 6, borderRadius: 2, backgroundColor: c.ac }} />
+        {[1, 0.8, 1, 0.6].map((w, i) => <View key={i} style={{ width: `${w * 100}%`, height: 3, borderRadius: 2, backgroundColor: c.ln2 }} />)}
+        {contract.signed ? <View style={{ marginTop: 'auto', width: '70%', height: 1, backgroundColor: c.ink3 }} /> : null}
+      </View>
+      <View style={{ flex: 1, gap: 6 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {contract.signed
+            ? <StatusChip tone="ok" icon={CheckCircle2} label="Signed" />
+            : <StatusChip tone="warn" label="Awaiting signature" />}
+          <Text variant="meta">{contract.contractNo}</Text>
+        </View>
+        <Text variant="title">Self-storage agreement</Text>
+        <Text variant="meta">From {shortDate(contract.startDate)} · {contract.status === 'ended' ? 'Ended' : 'Ends'} {shortDate(contract.endDate)}</Text>
+        <Pressable onPress={contract.signed ? onView : onSign} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+          <FileText color={c.ink} size={16} strokeWidth={1.6} />
+          <Text style={{ fontFamily: fonts.medium, fontSize: 14, color: c.ink }}>{contract.signed ? 'View contract' : 'Sign contract'}</Text>
+        </Pressable>
+      </View>
+    </Card>
+  );
+}
 
 export default function HomeTab() {
   const router = useRouter();
+  const { c } = useTheme();
   const customer = useAuth((s) => s.customer);
   const name = customer?.fullName?.split(' ')[0];
   const q = useQuery({ queryKey: ['home'], queryFn: storageApi.home });
   const pending = useQuery({ queryKey: ['booking-current'], queryFn: bookingApi.current });
+  const docs = useQuery({ queryKey: ['documents'], queryFn: storageApi.documents });
+  const bill = useBilling();
+  const services = useQuery({ queryKey: ['services'], queryFn: servicesApi.list });
+  const items = useQuery({ queryKey: ['items'], queryFn: servicesApi.items });
+  const activeRequests = (services.data ?? []).filter((r) => isOpen(r.status)).slice(0, 2);
+  const storedCount = (items.data ?? []).filter((i) => i.status === 'stored').length;
   const requests = useRequests((s) => s.items);
   const home = q.data;
   const contract = home?.primaryContract;
@@ -29,16 +117,35 @@ export default function HomeTab() {
   const toStart = daysUntil(contract?.startDate);
   const upcoming = toStart !== null && toStart > 0;
 
+  const upcomingInvoices = [...bill.open].sort((a, b) => a.dueDate.localeCompare(b.dueDate)).slice(0, 3);
+  const recentPaid = [...bill.paid].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
+  const toPayments = () => router.navigate('/(tabs)/payments');
+  const toDocuments = () => router.navigate({ pathname: '/(tabs)/storage', params: { tab: 'documents' } });
+  const viewContract = () => {
+    const agreements = docs.data?.agreements ?? [];
+    const doc = agreements.find((d) => contract && d.title.includes(contract.contractNo)) ?? agreements[0];
+    if (doc) openDocument(doc).catch((e) => Alert.alert('Contract', e.message));
+    else toDocuments();
+  };
+  const signContract = async () => {
+    try {
+      const b = await bookingApi.current();
+      if (b && b.state === 'ready_to_sign') router.push({ pathname: '/book/sign', params: { id: b.bookingId } });
+      else router.navigate('/(tabs)/storage');
+    } catch (e: any) { Alert.alert('Sign contract', e.message); }
+  };
+
   return (
     <Screen>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, marginBottom: 18 }}>
         <MenuButton />
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <IconButton icon={MessageCircle} label="Message us on WhatsApp" onPress={() => Linking.openURL(WHATSAPP)} />
-          <IconButton icon={Bell} label="Payments" badge={owing > 0} onPress={() => router.push('/(tabs)/payments')} />
+          <IconButton icon={Bell} label="Payments" badge={owing > 0} onPress={toPayments} />
         </View>
       </View>
-      <Page loading={q.isLoading} error={q.error?.message} refreshing={q.isRefetching} onRefresh={() => q.refetch()}>
+      <Page loading={q.isLoading} error={q.error?.message} refreshing={q.isRefetching || bill.refreshing}
+        onRefresh={() => { bill.refresh(); pending.refetch(); services.refetch(); items.refetch(); }}>
         <Text variant="h1" style={{ marginBottom: 4 }}>Hi{name && !/^[+\d]/.test(name) ? `, ${name}` : ''}</Text>
 
         {pending.data ? (
@@ -57,20 +164,6 @@ export default function HomeTab() {
           </Card>
         ) : null}
 
-        {owing > 0 ? (
-          <Card variant="dark" style={{ gap: 6 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <Text variant="title" color="onDk">Balance due</Text>
-              <Text variant="h2" color="onDk">{aed(owing)}</Text>
-            </View>
-            {home!.outstanding.invoices.slice(0, 3).map((i) => (
-              <Row key={i.id} dark leading={<RowIcon icon={FileText} dark />} title={i.invoiceNo} sub={`Due ${shortDate(i.dueDate)}`}
-                onPress={() => router.push('/(tabs)/payments')}
-                right={<StatusChip label={i.status} tone={invoiceTone(i.status)} />} />
-            ))}
-            <Button title="Pay now" variant="accent" onPress={() => router.push('/(tabs)/payments')} style={{ marginTop: 8 }} />
-          </Card>
-        ) : null}
         {contract && unit ? (
           <Card style={{ gap: 18, paddingTop: 24 }}>
             <View style={{ alignItems: 'center', gap: 2 }}>
@@ -96,17 +189,64 @@ export default function HomeTab() {
             <Text variant="h2">No storage unit yet</Text>
             <Text color="ink2">Book a unit in a few minutes. Already renting with us? Log in with the mobile or email on your contract.</Text>
             <Button title="Book a unit" onPress={() => router.push('/book')} style={{ marginTop: 6 }} />
-            <Button title="Estimate the space I need" variant="soft" onPress={() => router.push('/estimator')} />
           </Card>
         ) : null}
 
+        <ActionTiles items={[
+          { icon: PackagePlus, title: 'Request pickup', sub: 'We collect to storage', onPress: () => router.push({ pathname: '/service/new', params: { type: 'pickup' } }) },
+          { icon: Truck, title: 'Request drop-off', sub: 'Deliver to your door', onPress: () => router.push({ pathname: '/service/new', params: { type: 'dropoff' } }) },
+          { icon: Boxes, title: 'View stored items', sub: storedCount ? `${storedCount} labelled item${storedCount === 1 ? '' : 's'}` : 'Your labelled items', onPress: () => router.navigate({ pathname: '/(tabs)/storage', params: { tab: 'items' } }) },
+          { icon: Calculator, title: 'Storage estimator', sub: 'Find the right size', onPress: () => router.push('/estimator') },
+        ]} />
+
+        <View style={{ gap: 12 }}>
+          <SectionHead title="Active requests" link="All services" onPress={() => router.navigate('/(tabs)/services')} />
+          {activeRequests.length ? (
+            <Card style={{ paddingVertical: 4 }}>
+              {activeRequests.map((r) => <RequestRow key={r.id} r={r} onPress={() => router.push({ pathname: '/service/[id]', params: { id: r.id } })} />)}
+            </Card>
+          ) : (
+            <Pressable onPress={() => router.navigate('/(tabs)/services')} accessibilityRole="button"
+              style={{ alignItems: 'center', gap: 6, padding: 22, borderRadius: 28, borderWidth: 1.5, borderStyle: 'dashed', borderColor: c.ln2 }}>
+              <CalendarCheck color={c.ink3} size={24} strokeWidth={1.4} />
+              <Text variant="title">Nothing scheduled</Text>
+              <Text variant="meta" style={{ textAlign: 'center' }}>Order boxes & labels, book a pickup or have items delivered.</Text>
+            </Pressable>
+          )}
+        </View>
+
         {contract ? (
-          <QuickActions items={[
-            { icon: CreditCard, label: 'Pay', onPress: () => router.navigate('/(tabs)/payments') },
-            { icon: FileText, label: 'Documents', onPress: () => router.navigate({ pathname: '/(tabs)/storage', params: { tab: 'documents' } }) },
-            { icon: LogOut, label: 'Check-out', onPress: () => router.push('/checkout') },
-            { icon: PlusCircle, label: 'Book', onPress: () => router.push('/book') },
-          ]} />
+          <View style={{ gap: 12 }}>
+            <SectionHead title="My contract" link="All documents" onPress={toDocuments} />
+            <ContractCard contract={contract} onView={viewContract} onSign={signContract} />
+          </View>
+        ) : null}
+
+        {contract || bill.list.length || bill.paid.length ? (
+          <View style={{ gap: 12 }}>
+            <SectionHead title="Payments" link="See all" onPress={toPayments} />
+            <Card style={{ gap: 4, paddingVertical: 14 }}>
+              <Text variant="overline">Upcoming</Text>
+              {upcomingInvoices.map((i) => (
+                <Row key={i.id} leading={<RowIcon icon={FileText} />} title={aed(i.balance)} sub={`${i.number} · Due ${shortDate(i.dueDate)}`}
+                  onPress={toPayments} right={<StatusChip label={i.status.replace(/_/g, ' ')} tone={invoiceTone(i.status)} />} />
+              ))}
+              {!upcomingInvoices.length && contract?.nextPaymentDate ? (
+                <Row leading={<RowIcon icon={CalendarClock} />} title={aed(monthlyRate(contract))} sub={`Next payment · ${shortDate(contract.nextPaymentDate)}`}
+                  right={<StatusChip label="Scheduled" />} />
+              ) : null}
+              {!upcomingInvoices.length && !contract?.nextPaymentDate ? <Text color="ink2" style={{ paddingVertical: 8 }}>Nothing due — you’re all paid up.</Text> : null}
+              {bill.due > 0 ? <Button title={`Pay ${aed(bill.due)}`} variant="accent" icon={CreditCard} onPress={toPayments} style={{ height: 46, marginTop: 4, marginBottom: 6 }} /> : null}
+
+              <View style={{ height: 1, backgroundColor: c.ln, marginVertical: 8 }} />
+              <Text variant="overline">Paid</Text>
+              {recentPaid.map((p) => (
+                <Row key={p.id} leading={<RowIcon icon={Receipt} />} title={aed(p.amount)} sub={p.sub}
+                  onPress={toPayments} right={<StatusChip tone="ok" label="Paid" />} />
+              ))}
+              {!recentPaid.length ? <Text color="ink2" style={{ paddingVertical: 8 }}>No payments yet.</Text> : null}
+            </Card>
+          </View>
         ) : null}
 
         {requests.length ? (

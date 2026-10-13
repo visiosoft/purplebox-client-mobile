@@ -4,10 +4,10 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-na
 import { Tabs, type BottomTabBarProps } from 'expo-router/tabs';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
-import { CreditCard, Home, Package, User } from 'lucide-react-native';
+import { CreditCard, Home, Package, Truck, User } from 'lucide-react-native';
 import { Text } from '@/components/ui';
 
-const ICONS = { index: Home, storage: Package, payments: CreditCard, account: User } as const;
+const ICONS = { index: Home, storage: Package, services: Truck, payments: CreditCard, account: User } as const;
 
 /**
  * Floating "liquid glass" pill: dark charcoal, semi-transparent, blurred over
@@ -77,7 +77,8 @@ export default function TabsLayout() {
   return (
     <Tabs tabBar={(props) => <GlassTabBar {...props} />} screenOptions={{ headerShown: false, animation: 'fade' }}>
       <Tabs.Screen name="index" options={{ title: 'Home' }} />
-      <Tabs.Screen name="storage" options={{ title: 'My Units' }} />
+      <Tabs.Screen name="storage" options={{ title: 'Storage' }} />
+      <Tabs.Screen name="services" options={{ title: 'Services' }} />
       <Tabs.Screen name="payments" options={{ title: 'Payments' }} />
       <Tabs.Screen name="account" options={{ title: 'Account' }} />
     </Tabs>

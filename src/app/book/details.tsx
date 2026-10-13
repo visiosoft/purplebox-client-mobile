@@ -30,7 +30,7 @@ export default function Details() {
   };
 
   return (
-    <Screen style={{ gap: 18 }}>
+    <Screen keyboard style={{ gap: 18 }}>
       <TopBar title="Your details" />
       <View style={{ marginTop: -8 }}>
         <Text color="ink2">Your storage contract will be made out in this name, and your receipt sent to this email.</Text>

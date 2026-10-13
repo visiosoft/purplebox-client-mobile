@@ -1,13 +1,19 @@
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { Alert, Pressable, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Calculator, FileSignature, FileText, LogOut, Package, Plus, Receipt, Undo2, CreditCard } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  Calculator, CalendarClock, FileSignature, FileText, LogIn, LogOut, Package, Plus, Receipt, Undo2, CreditCard, Truck, X, type LucideIcon,
+} from 'lucide-react-native';
 import { Button, Card, IconButton, Screen, TabHeader, Text } from '@/components/ui';
 import { useRequests, REQUEST_LABEL } from '@/store/requests';
 import { Meter, Page, Row, RowIcon, Segmented, StatusChip } from '@/components/bits';
 import { bookingApi } from '@/api/booking';
-import { DocItem, openDocument, storageApi } from '@/api/storage';
+import { Contract, DocItem, openDocument, storageApi } from '@/api/storage';
+import { SERVICE_LABEL, STATUS_LABEL, servicesApi, whenLabel } from '@/api/services';
+import { ItemsPanel } from '@/components/ItemsPanel';
+import { SERVICE_ICON } from '@/components/service';
 import { useTheme } from '@/theme/useTheme';
 import { aed, daysUntil, monthlyRate, shortDate, termProgress } from '@/lib/format';
 
@@ -53,12 +59,64 @@ function UnitAction({ icon: Icon, label, onPress, primary }: { icon: typeof Pack
   return <Button title={label} icon={Icon} variant={primary ? 'accent' : 'soft'} onPress={onPress} style={{ flex: 1, height: 44, paddingHorizontal: 10 }} />;
 }
 
+type Event = { icon: LucideIcon; title: string; sub: string; at: string; state: 'done' | 'current' | 'future'; onPress?: () => void };
+
+/** What has happened with the storage, newest last: agreements, services, and the check-out still to come. */
+function Activity({ contracts }: { contracts: Contract[] }) {
+  const router = useRouter();
+  const { c } = useTheme();
+  const services = useQuery({ queryKey: ['services'], queryFn: servicesApi.list });
+  const [now] = useState(() => Date.now());
+  const events: Event[] = [
+    ...contracts.flatMap((k): Event[] => [
+      { icon: LogIn, title: 'Moved in', sub: `${k.units.map((u) => u.unitNumber).join(', ')} · ${k.contractNo}`, at: k.startDate, state: new Date(k.startDate).getTime() <= now ? 'done' : 'future' },
+      ...(k.status === 'active' ? [{ icon: CalendarClock, title: 'Scheduled check-out', sub: 'End of current agreement term', at: k.endDate, state: 'future' as const }] : []),
+    ]),
+    ...(services.data ?? []).filter((r) => r.status !== 'cancelled').map((r): Event => ({
+      icon: SERVICE_ICON[r.type], title: r.status === 'completed' ? SERVICE_LABEL[r.type] : `${SERVICE_LABEL[r.type]} · ${STATUS_LABEL[r.status].toLowerCase()}`,
+      sub: `${r.ref} · ${whenLabel(r)}`, at: r.date, state: r.status === 'completed' ? 'done' : 'current',
+      onPress: () => router.push({ pathname: '/service/[id]', params: { id: r.id } }),
+    })),
+  ].sort((a, b) => a.at.localeCompare(b.at));
+  if (!events.length) return null;
+  return (
+    <Card style={{ gap: 0 }}>
+      <Text variant="title" style={{ marginBottom: 12 }}>Activity</Text>
+      {events.map((e, i) => (
+        <Pressable key={`${e.title}-${i}`} onPress={e.onPress} disabled={!e.onPress} style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={{ alignItems: 'center' }}>
+            <View style={{
+              width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+              backgroundColor: e.state === 'done' ? c.acSoft : e.state === 'current' ? c.warnBg : 'transparent',
+              borderWidth: e.state === 'future' ? 1.5 : 0, borderStyle: 'dashed', borderColor: c.ln2,
+            }}>
+              <e.icon color={e.state === 'current' ? c.warn : c.ink2} size={17} strokeWidth={1.6} />
+            </View>
+            {i < events.length - 1 ? <View style={{ width: 2, flex: 1, minHeight: 12, backgroundColor: c.ln }} /> : null}
+          </View>
+          <View style={{ flex: 1, paddingBottom: 14, gap: 2 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 8 }}>
+              <Text variant="title" style={{ fontSize: 15, flex: 1 }}>{e.title}</Text>
+              <Text variant="meta">{shortDate(e.at)}</Text>
+            </View>
+            <Text variant="meta">{e.sub}</Text>
+          </View>
+        </Pressable>
+      ))}
+    </Card>
+  );
+}
+
 export default function StorageTab() {
   const router = useRouter();
   const { c } = useTheme();
   const params = useLocalSearchParams<{ tab?: string }>();
-  const [picked, setTab] = useState<'unit' | 'documents' | null>(null);
-  const tab = picked ?? (params.tab === 'documents' ? 'documents' : 'unit'); // a shortcut can open straight to Documents
+  const insets = useSafeAreaInsets();
+  const [picked, setTab] = useState<'unit' | 'items' | 'documents' | null>(null);
+  // a shortcut can open straight to Items or Documents
+  const tab = picked ?? (params.tab === 'documents' || params.tab === 'items' ? params.tab : 'unit');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const q = useQuery({ queryKey: ['contracts'], queryFn: storageApi.contracts });
   const invoices = useQuery({ queryKey: ['invoices'], queryFn: storageApi.invoices });
   const requests = useRequests((s) => s.items);
@@ -66,10 +124,12 @@ export default function StorageTab() {
 
   return (
     <Screen>
-      <TabHeader title="My Units" right={<IconButton icon={Plus} label="Book a unit" tone="accent" onPress={() => router.push('/book')} />} />
+      <TabHeader title="My storage" right={<IconButton icon={Plus} label="Book a unit" tone="accent" onPress={() => router.push('/book')} />} />
       <Page loading={q.isLoading} error={q.error?.message} refreshing={q.isRefetching} onRefresh={() => q.refetch()}>
-        <Segmented value={tab} onChange={setTab} options={[{ value: 'unit', label: 'Units' }, { value: 'documents', label: 'Documents' }]} />
-        {tab === 'documents' ? <Documents /> : (
+        <Segmented value={tab} onChange={setTab} options={[{ value: 'unit', label: 'Unit' }, { value: 'items', label: 'Items' }, { value: 'documents', label: 'Documents' }]} />
+        {tab === 'documents' ? <Documents /> : tab === 'items' ? (
+          <ItemsPanel selected={selected} onToggle={toggle} onSelectAll={(ids) => setSelected(new Set(ids))} />
+        ) : (
           <>
             {(q.data ?? []).length === 0 ? <Text color="ink2">No storage contracts on your account yet.</Text> : null}
             {(q.data ?? []).map((k) => {
@@ -122,9 +182,18 @@ export default function StorageTab() {
             })}
             <Button title={(q.data ?? []).length ? 'Book another unit' : 'Book a unit'} icon={Plus} onPress={() => router.push('/book')} />
             <Button title="Estimate the space I need" variant="soft" icon={Calculator} onPress={() => router.push('/estimator')} />
+            <Activity contracts={q.data ?? []} />
           </>
         )}
       </Page>
+      {/* Picking items raises a footer above the tab bar to send them home. */}
+      {tab === 'items' && selected.size ? (
+        <View style={{ position: 'absolute', left: 16, right: 16, bottom: Math.max(insets.bottom, 12) + 88, flexDirection: 'row', gap: 10 }}>
+          <IconButton icon={X} label="Clear selection" size={52} onPress={() => setSelected(new Set())} />
+          <Button title={`Request delivery for ${selected.size} item${selected.size === 1 ? '' : 's'}`} icon={Truck} style={{ flex: 1 }}
+            onPress={() => { router.push({ pathname: '/service/new', params: { type: 'dropoff', items: [...selected].join(',') } }); setSelected(new Set()); }} />
+        </View>
+      ) : null}
     </Screen>
   );
 }

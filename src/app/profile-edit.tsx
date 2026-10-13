@@ -26,7 +26,7 @@ export default function ProfileEdit() {
   };
 
   return (
-    <Screen style={{ gap: 18 }}>
+    <Screen keyboard style={{ gap: 18 }}>
       <TopBar title="Edit profile" />
       <Text color="ink2" style={{ marginTop: -8 }}>Your contracts are made out in this name.</Text>
       <Input label="Full name" icon={User} autoCapitalize="words" value={fullName} onChangeText={setFullName} />

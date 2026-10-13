@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, View } from 'react-native';
+import { Alert, View } from 'react-native';
 import { ShieldCheck } from 'lucide-react-native';
 import { Button, Input, Screen, Text } from '@/components/ui';
 import { StatusChip } from '@/components/bits';
@@ -38,8 +38,8 @@ export default function Login() {
   });
 
   return (
-    <Screen style={{ justifyContent: 'center' }}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ gap: 20 }}>
+    <Screen keyboard style={{ justifyContent: 'center' }}>
+      <View style={{ gap: 20 }}>
         <View style={{ gap: 8 }}>
           <StatusChip label="PurpleBox Storage" tone="brand" />
           <Text variant="display" style={{ marginTop: 10 }}>{sentTo ? 'Check your\nmessages' : 'Log in or\nsign up'}</Text>
@@ -62,7 +62,7 @@ export default function Login() {
             <Button title={kind === 'phone' ? 'Use a different number' : 'Use a different email'} variant="ghost" onPress={() => { setSentTo(null); setCode(''); }} />
           </>
         )}
-      </KeyboardAvoidingView>
+      </View>
     </Screen>
   );
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, View } from 'react-native';
+import { Alert, View } from 'react-native';
 import { Mail, User } from 'lucide-react-native';
 import { Button, Input, Screen, Text } from '@/components/ui';
 import { StatusChip } from '@/components/bits';
@@ -25,8 +25,8 @@ export default function CreateProfile() {
   };
 
   return (
-    <Screen style={{ justifyContent: 'center' }}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ gap: 20 }}>
+    <Screen keyboard style={{ justifyContent: 'center' }}>
+      <View style={{ gap: 20 }}>
         <View style={{ gap: 8 }}>
           <StatusChip label="Almost there" tone="brand" />
           <Text variant="display" style={{ marginTop: 10 }}>Tell us{'\n'}about you</Text>
@@ -36,7 +36,7 @@ export default function CreateProfile() {
         <Input label="Email" icon={Mail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" value={email} onChangeText={setEmail} />
         <Button title="Create account" loading={busy} disabled={!valid} onPress={save} />
         <Button title={`Not ${customer?.phone ?? 'you'}? Sign out`} variant="ghost" onPress={logout} />
-      </KeyboardAvoidingView>
+      </View>
     </Screen>
   );
 }

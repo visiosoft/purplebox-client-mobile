@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import {
   ActivityIndicator, Platform, Pressable, StyleProp, StyleSheet, Text as RNText, TextInput, TextInputProps, TextStyle, View, ViewStyle,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
@@ -52,13 +53,25 @@ export function Backdrop() {
   );
 }
 
-export function Screen({ children, style }: { children: ReactNode; style?: StyleProp<ViewStyle> }) {
+/** `keyboard` makes the screen scroll the focused input above the on-screen keyboard — use it on any screen with text fields. */
+export function Screen({ children, style, keyboard }: { children: ReactNode; style?: StyleProp<ViewStyle>; keyboard?: boolean }) {
   const { c } = useTheme();
   const insets = useSafeAreaInsets();
   return (
     <View style={{ flex: 1, backgroundColor: c.bg }}>
       <Backdrop />
-      <View style={[{ flex: 1, paddingTop: insets.top, paddingHorizontal: space.gutter }, style]}>{children}</View>
+      {keyboard ? (
+        <KeyboardAwareScrollView
+          bottomOffset={24}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[{ flexGrow: 1, paddingTop: insets.top, paddingBottom: insets.bottom + 24, paddingHorizontal: space.gutter }, style]}
+        >
+          {children}
+        </KeyboardAwareScrollView>
+      ) : (
+        <View style={[{ flex: 1, paddingTop: insets.top, paddingHorizontal: space.gutter }, style]}>{children}</View>
+      )}
     </View>
   );
 }
@@ -151,14 +164,20 @@ export function Input({ label, style, icon: Icon, ...p }: TextInputProps & { lab
     <View style={{ gap: 8 }}>
       {label ? <Text variant="overline" color="ink2" style={{ marginLeft: 4 }}>{label}</Text> : null}
       <View style={{
-        flexDirection: 'row', alignItems: 'center', gap: 10, height: 58, borderRadius: radius.input, borderCurve: 'continuous',
+        flexDirection: 'row', alignItems: p.multiline ? 'flex-start' : 'center', gap: 10, borderRadius: radius.input, borderCurve: 'continuous',
         backgroundColor: c.sf, borderWidth: 1, borderColor: c.ln, paddingHorizontal: 18,
+        ...(p.multiline ? { minHeight: 116, paddingVertical: 14 } : { height: 58 }),
       }}>
-        {Icon ? <Icon color={c.ink3} size={18} strokeWidth={1.6} /> : null}
+        {Icon ? <Icon color={c.ink3} size={18} strokeWidth={1.6} style={p.multiline ? { marginTop: 3 } : undefined} /> : null}
         <TextInput
           placeholderTextColor={c.ink3}
+          textAlignVertical={p.multiline ? 'top' : 'center'}
           {...p}
-          style={[{ flex: 1, height: '100%', fontFamily: fonts.regular, fontSize: 17, color: c.ink }, Platform.OS === 'web' && { outlineWidth: 0 }, style]}
+          style={[
+            { flex: 1, fontFamily: fonts.regular, fontSize: 17, color: c.ink },
+            p.multiline ? { minHeight: 88 } : { height: '100%' },
+            Platform.OS === 'web' && { outlineWidth: 0 }, style,
+          ]}
         />
       </View>
     </View>

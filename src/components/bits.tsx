@@ -1,5 +1,6 @@
-import { Children, ReactNode, useEffect, useRef, useState } from 'react';
+import { Children, Fragment, ReactElement, ReactNode, isValidElement, useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, RefreshControl, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import Animated, { FadeInDown, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 import { ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react-native';
@@ -85,6 +86,12 @@ export function Skeleton({ height = 96, radiusPx = 28 }: { height?: number; radi
 }
 
 /** A scrolling page with pull-to-refresh, skeleton loading and a retry on errors, so each screen only renders its data. */
+// Screens often wrap their content in `{data ? <>…</> : null}`. Opening the
+// fragments lets every card get its own gap and entrance, not just the wrapper.
+const flatten = (children: ReactNode): ReactNode[] =>
+  Children.toArray(children).flatMap((child) =>
+    isValidElement(child) && child.type === Fragment ? flatten((child as ReactElement<{ children?: ReactNode }>).props.children) : [child]);
+
 export function Page({ children, loading, error, refreshing, onRefresh }: {
   children: ReactNode; loading?: boolean; error?: string | null; refreshing?: boolean; onRefresh?: () => void;
 }) {
@@ -92,7 +99,8 @@ export function Page({ children, loading, error, refreshing, onRefresh }: {
   const reduced = useReducedMotion();
   if (loading) return <View style={{ gap: 14 }}><Skeleton height={220} /><Skeleton height={120} /><Skeleton height={120} /></View>;
   return (
-    <ScrollView contentContainerStyle={{ paddingBottom: 130, gap: 14 }} showsVerticalScrollIndicator={false}
+    <KeyboardAwareScrollView contentContainerStyle={{ paddingBottom: 130, gap: 14 }} showsVerticalScrollIndicator={false}
+      bottomOffset={24} keyboardShouldPersistTaps="handled"
       refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={c.ink} /> : undefined}>
       {error ? (
         <View style={{ gap: 10, backgroundColor: c.errBg, borderRadius: radius.card, padding: 16 }}>
@@ -100,10 +108,10 @@ export function Page({ children, loading, error, refreshing, onRefresh }: {
           {onRefresh ? <Button title="Try again" variant="soft" style={{ height: 44 }} onPress={onRefresh} /> : null}
         </View>
       ) : null}
-      {Children.toArray(children).map((child, i) => (
+      {flatten(children).map((child, i) => (
         <Animated.View key={i} entering={reduced ? undefined : FadeInDown.delay(Math.min(i, 8) * 70).springify().damping(18)}>{child}</Animated.View>
       ))}
-    </ScrollView>
+    </KeyboardAwareScrollView>
   );
 }
 
@@ -121,23 +129,6 @@ export function Steps({ current }: { current: 0 | 1 | 2 | 3 }) {
   );
 }
 
-/** Round, labelled shortcuts for the things people do most. */
-export function QuickActions({ items }: { items: { icon: LucideIcon; label: string; onPress: () => void }[] }) {
-  const { c } = useTheme();
-  return (
-    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-      {items.map((it) => (
-        <Pressable key={it.label} onPress={it.onPress} accessibilityRole="button" accessibilityLabel={it.label}
-          style={({ pressed }) => ({ flex: 1, alignItems: 'center', gap: 8, opacity: pressed ? 0.6 : 1 })}>
-          <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: c.sf, borderWidth: 1, borderColor: c.ln, alignItems: 'center', justifyContent: 'center' }}>
-            <it.icon color={c.ink} size={22} strokeWidth={1.6} />
-          </View>
-          <Text variant="meta" color="ink" style={{ textAlign: 'center' }}>{it.label}</Text>
-        </Pressable>
-      ))}
-    </View>
-  );
-}
 
 /** Solid bar for the filled part, then a hatched track for the rest — as on the match-rate cards. */
 export function Meter({ value, color, height = 8 }: { value: number; color?: string; height?: number }) {

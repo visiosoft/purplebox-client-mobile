@@ -21,6 +21,9 @@ export const bookingApi = {
   get: (id: string) => api<Booking>(`${BASE}/${id}`),
   current: () => api<Booking | null>(`${BASE}/current`),
   pay: (id: string) => api<{ url: string }>(`${BASE}/${id}/pay`, { method: 'POST', body: {} }),
+  /** Card form inside the app. Without a Stripe publishable key on the server it falls back to `url` (Stripe's page). */
+  payEmbedded: (id: string) => api<{ clientSecret?: string; publishableKey?: string; url?: string; amount: number; cardFee: number; totalCharged: number }>(
+    `${BASE}/${id}/pay`, { method: 'POST', body: { embedded: true } }),
   sign: (id: string, signerName: string) => api<{ ok: boolean; contractNo: string }>(`${BASE}/${id}/sign`, { body: { signerName, signMode: 'typed' } }),
   contractHref: (id: string) => `${BASE}/${id}/contract.pdf`,
   updateProfile: (body: { fullName: string; email: string }) =>
