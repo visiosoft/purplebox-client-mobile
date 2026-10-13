@@ -39,7 +39,7 @@ export function Text({ style, variant = 'body', color, ...p }: React.ComponentPr
 export function Backdrop() {
   const { c } = useTheme();
   return (
-    <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+    <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
       <Defs>
         <LinearGradient id="pb-bg" x1="0" y1="0" x2="0" y2="1">
           <Stop offset="0" stopColor={c.bg} />
