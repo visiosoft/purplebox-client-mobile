@@ -63,7 +63,7 @@ export async function openDocument(doc: Pick<DocItem, 'href' | 'title'>) {
  * PDFs sit behind the Bearer token, so they are fetched with it. On phones the file goes to the cache folder
  * (so the viewer can read it); in a browser it becomes a blob: URL. Either way the result is something a viewer can show.
  */
-export async function fetchDocument(doc: Pick<DocItem, 'href' | 'title'>): Promise<string> {
+export async function fetchDocument(doc: Pick<DocItem, 'href' | 'title'> & { ext?: string }): Promise<string> {
   const url = `${API_BASE}${doc.href}`;
   const headers = { Authorization: `Bearer ${getToken()}` };
   if (Platform.OS === 'web') {
@@ -71,7 +71,7 @@ export async function fetchDocument(doc: Pick<DocItem, 'href' | 'title'>): Promi
     if (!res.ok) throw new Error('Could not load this document');
     return URL.createObjectURL(await res.blob());
   }
-  const target = `${FileSystem.cacheDirectory}${doc.title.replace(/[^\w.-]/g, '_')}.pdf`;
+  const target = `${FileSystem.cacheDirectory}${doc.title.replace(/[^\w.-]/g, '_')}.${doc.ext ?? 'pdf'}`;
   const res = await FileSystem.downloadAsync(url, target, { headers });
   if (res.status !== 200) throw new Error('Could not load this document');
   return res.uri;

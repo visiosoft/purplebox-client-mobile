@@ -13,12 +13,12 @@ export default function PayScreen() {
   const router = useRouter();
   const qc = useQueryClient();
   const { c } = useTheme();
-  const { url, clientSecret, publishableKey, kind, id } = useLocalSearchParams<{ url?: string; clientSecret?: string; publishableKey?: string; kind: 'invoice' | 'booking'; id: string }>();
+  const { url, clientSecret, publishableKey, kind, id } = useLocalSearchParams<{ url?: string; clientSecret?: string; publishableKey?: string; kind: 'invoice' | 'booking' | 'card'; id: string }>();
   const [paid, setPaid] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const refreshSoon = () => {
-    const go = () => ['billing', 'home', 'invoices', 'payments', 'documents'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+    const go = () => ['billing', 'home', 'invoices', 'payments', 'documents', 'autopay'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
     go(); setTimeout(go, 4000);
   };
   const leave = () => {
@@ -30,7 +30,7 @@ export default function PayScreen() {
   return (
     <Screen style={{ paddingBottom: 16 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, marginBottom: 12 }}>
-        <Text variant="h3">Secure payment</Text>
+        <Text variant="h3">{kind === 'card' ? 'Save a card' : 'Secure payment'}</Text>
         <IconButton icon={X} label="Close payment" onPress={leave} />
       </View>
       {paid ? (
@@ -38,8 +38,8 @@ export default function PayScreen() {
           <View style={{ width: 88, height: 88, borderRadius: 44, backgroundColor: c.ac, alignItems: 'center', justifyContent: 'center' }}>
             <Check color={c.acInk} size={40} strokeWidth={1.8} />
           </View>
-          <Text variant="h1">Payment received</Text>
-          <Text color="ink2" style={{ textAlign: 'center' }}>Thank you! It can take a moment to show on your invoices.</Text>
+          <Text variant="h1">{kind === 'card' ? 'Card saved' : 'Payment received'}</Text>
+          <Text color="ink2" style={{ textAlign: 'center' }}>{kind === 'card' ? 'Thank you! It can take a moment to show on the Auto-pay screen.' : 'Thank you! It can take a moment to show on your invoices.'}</Text>
           <Button title="Done" onPress={leave} style={{ alignSelf: 'stretch' }} />
         </View>
       ) : error ? (

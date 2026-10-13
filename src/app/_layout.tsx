@@ -23,6 +23,7 @@ function Gate() {
   const segments = useSegments();
   const router = useRouter();
   const { c, isDark } = useTheme();
+  const promptSeen = usePrefs((s) => s.profilePromptSeen);
   useBookingReminders(!!customer && !needsProfile(customer));
 
   useEffect(() => {
@@ -31,8 +32,10 @@ function Gate() {
     const onProfile = inAuth && (segments as string[])[1] === 'profile';
     if (!customer && !inAuth) router.replace('/(auth)/login');
     else if (customer && needsProfile(customer) && !onProfile) router.replace('/(auth)/profile');
-    else if (customer && !needsProfile(customer) && inAuth) router.replace('/(tabs)');
-  }, [ready, customer, segments, router]);
+    // Signed in with a real name: show "complete your profile" once, then the app. It is optional and skippable.
+    else if (customer && !needsProfile(customer) && inAuth) router.replace(promptSeen ? '/(tabs)' : '/profile-complete?welcome=1');
+    else if (customer && !needsProfile(customer) && !promptSeen && segments[0] === '(tabs)') router.replace('/profile-complete?welcome=1');
+  }, [ready, customer, segments, router, promptSeen]);
 
   return (
     <>

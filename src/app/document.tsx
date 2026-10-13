@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
+import { Image } from 'expo-image';
 import { Share2 } from 'lucide-react-native';
 import { Button, IconButton, Screen, Text, TopBar } from '@/components/ui';
 import { PdfViewer } from '@/components/PdfViewer';
@@ -10,16 +11,17 @@ import { useTheme } from '@/theme/useTheme';
 // Contracts, invoices and receipts open here, inside the app, so people can read them without leaving.
 export default function DocumentScreen() {
   const { c } = useTheme();
-  const { href, title } = useLocalSearchParams<{ href: string; title: string }>();
+  const { href, title, mime, ext } = useLocalSearchParams<{ href: string; title: string; mime?: string; ext?: string }>();
+  const isImage = !!mime?.startsWith('image/');
   const [uri, setUri] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let live = true;
-    fetchDocument({ href, title }).then((u) => { if (live) { setUri(u); setError(null); } }).catch((e: Error) => { if (live) setError(e.message); });
+    fetchDocument({ href, title, ext }).then((u) => { if (live) { setUri(u); setError(null); } }).catch((e: Error) => { if (live) setError(e.message); });
     return () => { live = false; };
-  }, [href, title, attempt]);
+  }, [href, title, ext, attempt]);
 
   return (
     <Screen style={{ paddingBottom: 16 }}>
@@ -30,6 +32,8 @@ export default function DocumentScreen() {
             <Text style={{ color: c.err }}>{error}</Text>
             <Button title="Try again" variant="soft" onPress={() => { setError(null); setUri(null); setAttempt(attempt + 1); }} />
           </View>
+        ) : uri && isImage ? (
+          <Image source={uri} style={{ flex: 1, borderRadius: 24 }} contentFit="contain" onError={() => setError('Could not open this image')} />
         ) : uri ? (
           <PdfViewer uri={uri} onError={setError} />
         ) : (

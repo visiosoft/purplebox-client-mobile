@@ -4,11 +4,12 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-import { Bell, ChevronRight, FileText, IdCard, Link2, MessageCircle, MoreHorizontal, Package, Pencil, Receipt } from 'lucide-react-native';
+import { Bell, ChevronRight, CreditCard, FileText, FolderOpen, IdCard, Link2, UserCheck, Users, MessageCircle, MoreHorizontal, Package, Pencil, Receipt } from 'lucide-react-native';
 import { Backdrop, Button, IconButton, MenuButton, Text } from '@/components/ui';
 import { MetricPills, Row, RowIcon, Segmented, StatusChip } from '@/components/bits';
 import { openDocument, storageApi } from '@/api/storage';
 import { useBilling } from '@/hooks/useBilling';
+import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/store/auth';
 import { usePrefs } from '@/store/prefs';
 import { useTheme } from '@/theme/useTheme';
@@ -34,6 +35,7 @@ export default function ProfileTab() {
   const contracts = useQuery({ queryKey: ['contracts'], queryFn: storageApi.contracts });
   const documents = useQuery({ queryKey: ['documents'], queryFn: storageApi.documents });
   const billing = useBilling();
+  const profile = useProfile();
   const paidTotal = billing.totalPaid;
   const paidInvoices = billing.paid;
   const openInvoices = [...billing.overdue, ...billing.upcoming];
@@ -168,6 +170,10 @@ export default function ProfileTab() {
         )}
 
         <View style={{ backgroundColor: c.sf, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 6 }}>
+          <Row leading={<RowIcon icon={UserCheck} />} title="Complete your profile" sub={profile.percent !== null ? `${profile.percent}% done` : 'Email, WhatsApp, ID and more'} onPress={() => router.push('/profile-complete')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
+          <Row leading={<RowIcon icon={FolderOpen} />} title="My files" sub="ID and documents on file" onPress={() => router.push('/my-files')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
+          {units.length ? <Row leading={<RowIcon icon={Users} />} title="Who can enter my unit" sub="Add family, staff or a driver" onPress={() => router.push('/access')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} /> : null}
+          <Row leading={<RowIcon icon={CreditCard} />} title="Auto-pay and saved card" sub="Pay invoices automatically" onPress={() => router.push('/autopay')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
           <Row leading={<RowIcon icon={IdCard} />} title="ID verification" sub="Emirates ID or passport" onPress={() => router.push('/id-upload')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
           <Row leading={<RowIcon icon={Link2} />} title="I already rent with PurpleBox" sub="Add an existing unit to this account" onPress={() => router.push('/link-unit')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
           <Row leading={<RowIcon icon={Bell} />} title="Booking reminders" sub="Up to 3 nudges if a booking isn’t finished"

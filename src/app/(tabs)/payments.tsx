@@ -1,14 +1,17 @@
 import { useMemo, useState } from 'react';
-import { Alert, Linking, View } from 'react-native';
-import { useMutation } from '@tanstack/react-query';
-import { CreditCard, FileText } from 'lucide-react-native';
+import { Alert, Linking, Pressable, View } from 'react-native';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { Check, CreditCard, FileText } from 'lucide-react-native';
 import { Button, Card, Screen, TabHeader, Text } from '@/components/ui';
 import { LineChart, MetricPills, Page, Row, RowIcon, Segmented, StatusChip } from '@/components/bits';
 import { openDocument } from '@/api/storage';
+import { autopayApi } from '@/api/profile';
 import { BillInvoice, BillPayment, useBilling } from '@/hooks/useBilling';
 import { payInApp } from '@/lib/payInApp';
 import { aed, daysUntil, shortDate } from '@/lib/format';
 import { WHATSAPP } from '@/lib/contact';
+import { useTheme } from '@/theme/useTheme';
+import { useRouter } from 'expo-router';
 
 /** Totals paid in each of the last six calendar months, oldest first. */
 function byMonth(payments: BillPayment[]) {
@@ -32,12 +35,18 @@ const dueText = (i: BillInvoice) => {
 export default function PaymentsTab() {
   const [tab, setTab] = useState<'due' | 'history'>('due');
   const b = useBilling();
+  const router = useRouter();
+  const { c } = useTheme();
+  // "Save my card" is the customer's explicit choice; it is only offered while auto-pay is not already set up.
+  const autopay = useQuery({ queryKey: ['autopay'], queryFn: autopayApi.get, retry: false });
+  const [autoSave, setAutoSave] = useState(false);
+  const offerAutopay = !!autopay.data?.available && !autopay.data.enabled;
 
   // Stripe confirms payment to the server by webhook, which then updates Zoho Books; so look again shortly after.
   const pay = useMutation({
     mutationFn: (inv: BillInvoice) => {
       if (!inv.payId) throw new Error('Online payment is not set up for this invoice yet. Please message us and we will send you a payment link.');
-      return payInApp({ kind: 'invoice', id: inv.payId, label: `Pay ${aed(inv.balance)}` });
+      return payInApp({ kind: 'invoice', id: inv.payId, label: `Pay ${aed(inv.balance)}`, saveCard: offerAutopay && autoSave, autopayConsent: offerAutopay && autoSave });
     },
     onSuccess: (r) => { if (r === 'paid') Alert.alert('Payment received', 'Thank you! It will show under History in a moment.'); },
     onSettled: () => { b.refetch(); setTimeout(b.refetch, 4000); },
@@ -76,6 +85,19 @@ export default function PaymentsTab() {
 
         <Segmented value={tab} onChange={setTab} options={[{ value: 'due', label: 'To pay' }, { value: 'history', label: 'History' }]} />
 
+        {tab === 'due' && open.length && offerAutopay ? (
+          <Pressable onPress={() => setAutoSave(!autoSave)} accessibilityRole="checkbox" accessibilityState={{ checked: autoSave }}
+            style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start', backgroundColor: c.acSoft, borderRadius: 22, padding: 14 }}>
+            <View style={{ width: 26, height: 26, borderRadius: 13, borderWidth: autoSave ? 0 : 1.5, borderColor: c.ln2, backgroundColor: autoSave ? c.ac : c.sf, alignItems: 'center', justifyContent: 'center' }}>
+              {autoSave ? <Check color={c.acInk} size={15} strokeWidth={2.2} /> : null}
+            </View>
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text variant="title" style={{ fontSize: 15 }}>Save my card and pay future invoices automatically</Text>
+              <Text variant="meta" color="ink2">{autopay.data?.consentText}</Text>
+            </View>
+          </Pressable>
+        ) : null}
+
         {tab === 'due' ? (
           <>
             {b.overdue.length ? (
@@ -96,6 +118,7 @@ export default function PaymentsTab() {
                 <Text color="ink2">New invoices appear here as soon as we issue them.</Text>
               </Card>
             ) : null}
+            <Button title={autopay.data?.card ? `Auto-pay · ${autopay.data.enabled ? 'on' : 'off'} · card ••${autopay.data.card.last4}` : 'Set up auto-pay'} variant="soft" icon={CreditCard} onPress={() => router.push('/autopay')} />
           </>
         ) : (
           <>

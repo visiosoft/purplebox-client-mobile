@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Alert, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Calculator, FileSignature, FileText, LogOut, Package, Plus, Receipt, Undo2, CreditCard } from 'lucide-react-native';
+import { Calculator, Users, FileSignature, FileText, LogOut, Package, Plus, Receipt, Undo2, CreditCard } from 'lucide-react-native';
 import { Button, Card, IconButton, Screen, TabHeader, Text } from '@/components/ui';
 import { useRequests, REQUEST_LABEL } from '@/store/requests';
 import { Meter, Page, Row, RowIcon, Segmented, StatusChip } from '@/components/bits';
@@ -50,7 +50,7 @@ async function signPending(router: ReturnType<typeof useRouter>) {
 
 /** Small labelled action under a unit. */
 function UnitAction({ icon: Icon, label, onPress, primary }: { icon: typeof Package; label: string; onPress: () => void; primary?: boolean }) {
-  return <Button title={label} icon={Icon} variant={primary ? 'accent' : 'soft'} onPress={onPress} style={{ flex: 1, height: 44, paddingHorizontal: 10 }} />;
+  return <Button title={label} icon={Icon} variant={primary ? 'accent' : 'soft'} onPress={onPress} style={{ flex: 1, height: 44, paddingHorizontal: 6, gap: 6 }} />;
 }
 
 export default function StorageTab() {
@@ -110,6 +110,11 @@ export default function StorageTab() {
                       {owing ? <UnitAction primary icon={CreditCard} label="Pay" onPress={() => router.navigate('/(tabs)/payments')} /> : null}
                       <UnitAction icon={FileText} label="Documents" onPress={() => setTab('documents')} />
                       <UnitAction icon={LogOut} label="Move out" onPress={() => router.push({ pathname: '/checkout', params: { contractId: k.id } })} />
+                    </View>
+                  ) : null}
+                  {k.status === 'active' ? (
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <UnitAction icon={Users} label={`Who can enter${k.authorizedPersons.length ? ` · ${k.authorizedPersons.length}` : ''}`} onPress={() => router.push({ pathname: '/access', params: { contractId: k.id } })} />
                     </View>
                   ) : k.status === 'ended' ? (
                     <View style={{ flexDirection: 'row', gap: 8 }}>

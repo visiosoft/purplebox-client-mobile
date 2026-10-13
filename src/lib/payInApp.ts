@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { initPaymentSheet, initStripe, presentPaymentSheet } from '@stripe/stripe-react-native';
 import { ApiError } from '@/api/client';
-import { PayTarget, payApi } from '@/api/pay';
+import { PayTarget, SaveCard, payApi } from '@/api/pay';
 
 /** paid: the sheet confirmed it. canceled: they closed it. handed-off: Stripe's page is open in the app and finishes the flow itself. */
 export type PayResult = 'paid' | 'canceled' | 'handed-off';
@@ -12,8 +12,8 @@ const MERCHANT_ID = process.env.EXPO_PUBLIC_STRIPE_MERCHANT_ID; // Apple Pay, on
  * Stripe's checkout, shown inside the app (app/pay.tsx) instead of sending people out to a browser. Prefers Stripe's
  * embedded card form (server `embedded` mode); if the server answers with a hosted URL instead, shows that page.
  */
-async function inAppCheckoutPage(t: PayTarget): Promise<PayResult> {
-  const r = await payApi.embedded(t);
+async function inAppCheckoutPage(t: PayTarget, save?: SaveCard): Promise<PayResult> {
+  const r = await payApi.embedded(t, save);
   if (r.clientSecret && r.publishableKey) {
     router.push({ pathname: '/pay', params: { clientSecret: r.clientSecret, publishableKey: r.publishableKey, kind: t.kind, id: t.id } });
   } else {
@@ -28,12 +28,12 @@ async function inAppCheckoutPage(t: PayTarget): Promise<PayResult> {
  * the server to answer `POST …/pay-sheet` with a PaymentIntent client secret. Until it does (404/405), this falls back to
  * Stripe's embedded card form inside the app (already supported by the server). The server still confirms payment itself by webhook.
  */
-export async function payInApp(t: PayTarget & { label?: string }): Promise<PayResult> {
+export async function payInApp(t: PayTarget & SaveCard & { label?: string }): Promise<PayResult> {
   let s;
   try {
-    s = await payApi.sheet(t);
+    s = await payApi.sheet(t, t);
   } catch (e) {
-    if (e instanceof ApiError && [404, 405, 501].includes(e.status)) return inAppCheckoutPage(t);
+    if (e instanceof ApiError && [404, 405, 501].includes(e.status)) return inAppCheckoutPage(t, t);
     throw e;
   }
 

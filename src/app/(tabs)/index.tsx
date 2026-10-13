@@ -5,9 +5,10 @@ import {
   ArrowUpRight, Bell, Calculator, Clock, CreditCard, FileText, IdCard, Link2, LogOut, MapPin, MessageCircle, Package, Star, Undo2,
 } from 'lucide-react-native';
 import { Button, Card, IconButton, MenuButton, Screen, Text } from '@/components/ui';
-import { Gauge, MetricPills, Page, Row, RowIcon, StatusChip } from '@/components/bits';
+import { Gauge, Meter, MetricPills, Page, Row, RowIcon, StatusChip } from '@/components/bits';
 import { BoxArt, Carousel, DealCard, PhotoBanner, PlanCard, SectionTitle, ServiceStrip, Tile, UnitCard, type UnitCardData } from '@/components/home';
 import { storageApi } from '@/api/storage';
+import { useProfile } from '@/hooks/useProfile';
 import { bookingApi } from '@/api/booking';
 import { useAuth } from '@/store/auth';
 import { REQUEST_LABEL, useRequests } from '@/store/requests';
@@ -31,6 +32,8 @@ export default function HomeTab() {
   // Live availability and prices; the photos and "what fits" text come from our catalogue.
   const sizes = useQuery({ queryKey: ['sizes-home'], queryFn: () => bookingApi.sizes(today(), 1), staleTime: 5 * 60_000 });
   const requests = useRequests((s) => s.items);
+  const profile = useProfile();
+  const nextStep = profile.items.find((i) => !i.done);
 
   const home = q.data;
   const contract = home?.primaryContract;
@@ -97,6 +100,18 @@ export default function HomeTab() {
               <Text variant="meta" color="onDk2">{due !== null && due >= 0 && due <= 14 ? `Next payment in ${due} day${due === 1 ? '' : 's'}` : 'See your invoices'}</Text>
             </View>
             <Text style={{ fontFamily: fonts.medium, color: c.ac }}>Pay now</Text>
+          </Pressable>
+        ) : null}
+
+        {profile.percent !== null && profile.percent < 100 ? (
+          <Pressable onPress={() => router.push('/profile-complete')} accessibilityRole="button" accessibilityLabel={`Complete your profile, ${profile.percent} percent done`}
+            style={({ pressed }) => ({ backgroundColor: c.acSoft, borderRadius: radius.card, borderCurve: 'continuous', padding: 16, gap: 10, opacity: pressed ? 0.85 : 1 })}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={{ fontFamily: fonts.medium, fontSize: 17, color: c.ink }}>Complete your profile</Text>
+              <Text style={{ fontFamily: fonts.medium, fontSize: 17, color: c.ink }}>{profile.percent}%</Text>
+            </View>
+            <Meter value={profile.percent / 100} color={c.br} height={8} />
+            {nextStep ? <Text variant="meta" color="ink2">Next: {nextStep.title}</Text> : null}
           </Pressable>
         ) : null}
 

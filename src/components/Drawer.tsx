@@ -6,7 +6,7 @@ import Animated, { FadeInLeft, interpolate, runOnJS, useAnimatedStyle, useShared
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import {
-  Calculator, FileText, IdCard, Link2, LogOut, MessageCircle, PlusCircle, Undo2, type LucideIcon,
+  Calculator, CreditCard, FileText, FolderOpen, IdCard, Link2, LogOut, MessageCircle, PlusCircle, Undo2, UserCheck, Users, type LucideIcon,
 } from 'lucide-react-native';
 import { Avatar, Text } from '@/components/ui';
 import { Segmented } from '@/components/bits';
@@ -65,6 +65,8 @@ export function Drawer() {
     { title: 'Do more', items: [
       { icon: PlusCircle, label: 'Book a unit', path: '/book' }, { icon: Calculator, label: 'Space estimator', path: '/estimator' },
       { icon: FileText, label: 'Request check-out', path: '/checkout' }, { icon: Undo2, label: 'Request refund', path: '/refund' },
+      { icon: UserCheck, label: 'Complete your profile', path: '/profile-complete' }, { icon: FolderOpen, label: 'My files', path: '/my-files' },
+      { icon: Users, label: 'Who can enter my unit', path: '/access' }, { icon: CreditCard, label: 'Auto-pay and saved card', path: '/autopay' },
       { icon: IdCard, label: 'ID verification', path: '/id-upload' }, { icon: Link2, label: 'I already rent with us', path: '/link-unit' },
     ] },
   ];

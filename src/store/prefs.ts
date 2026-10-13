@@ -3,34 +3,36 @@ import { secure } from '@/lib/secure';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
-type PrefsState = {
-  theme: ThemeMode;
-  biometrics: boolean;
-  introSeen: boolean;
-  reminders: boolean;
+type Saved = { theme: ThemeMode; biometrics: boolean; introSeen: boolean; profilePromptSeen: boolean; reminders: boolean };
+
+type PrefsState = Saved & {
   hydrated: boolean;
   setTheme: (t: ThemeMode) => void;
   setBiometrics: (v: boolean) => void;
-  markIntroSeen: () => void;
   setReminders: (v: boolean) => void;
+  markIntroSeen: () => void;
+  /** The one-time "complete your profile" welcome has been shown (or skipped). */
+  markProfilePromptSeen: () => void;
   hydrate: () => Promise<void>;
 };
 
 const KEY = 'pb_prefs';
 
-const persist = (s: Pick<PrefsState, 'theme' | 'biometrics' | 'introSeen' | 'reminders'>) =>
-  secure.set(KEY, JSON.stringify(s)).catch(() => {});
+const save = (s: Saved) =>
+  secure.set(KEY, JSON.stringify({ theme: s.theme, biometrics: s.biometrics, introSeen: s.introSeen, profilePromptSeen: s.profilePromptSeen, reminders: s.reminders })).catch(() => {});
 
 export const usePrefs = create<PrefsState>((set, get) => ({
   theme: 'system',
   biometrics: false,
   introSeen: false,
+  profilePromptSeen: false,
   reminders: true,
   hydrated: false,
-  setTheme: (theme) => { set({ theme }); persist({ theme, biometrics: get().biometrics, introSeen: get().introSeen, reminders: get().reminders }); },
-  setBiometrics: (biometrics) => { set({ biometrics }); persist({ theme: get().theme, biometrics, introSeen: get().introSeen, reminders: get().reminders }); },
-  markIntroSeen: () => { set({ introSeen: true }); persist({ theme: get().theme, biometrics: get().biometrics, introSeen: true, reminders: get().reminders }); },
-  setReminders: (reminders) => { set({ reminders }); persist({ theme: get().theme, biometrics: get().biometrics, introSeen: get().introSeen, reminders }); },
+  setTheme: (theme) => { set({ theme }); save(get()); },
+  setBiometrics: (biometrics) => { set({ biometrics }); save(get()); },
+  setReminders: (reminders) => { set({ reminders }); save(get()); },
+  markIntroSeen: () => { set({ introSeen: true }); save(get()); },
+  markProfilePromptSeen: () => { set({ profilePromptSeen: true }); save(get()); },
   hydrate: async () => {
     try {
       const raw = await secure.get(KEY);
