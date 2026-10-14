@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  Calculator, CalendarClock, FileSignature, FileText, LogIn, LogOut, Package, Plus, Receipt, Undo2, CreditCard, Truck, X, type LucideIcon,
+  Calculator, CalendarClock, FileSignature, FileText, LogIn, LogOut, Package, Plus, Receipt, Undo2, CreditCard, Truck, Users, X, type LucideIcon,
 } from 'lucide-react-native';
 import { Button, Card, IconButton, Screen, TabHeader, Text } from '@/components/ui';
 import { useRequests, REQUEST_LABEL } from '@/store/requests';
@@ -14,30 +14,35 @@ import { Contract, DocItem, openDocument, storageApi } from '@/api/storage';
 import { SERVICE_LABEL, STATUS_LABEL, servicesApi, whenLabel } from '@/api/services';
 import { ItemsPanel } from '@/components/ItemsPanel';
 import { SERVICE_ICON } from '@/components/service';
+import { tr, useI18n } from '@/i18n';
 import { useTheme } from '@/theme/useTheme';
 import { aed, daysUntil, monthlyRate, shortDate, termProgress } from '@/lib/format';
 
 const DOC_ICON = { agreement: FileSignature, invoice: FileText, receipt: Receipt } as const;
 
+/** Server statuses are snake_case words ("pending_signature"); show them as plain, translated words. */
+const statusText = (s: string) => tr(s.replace('_', ' '));
+
 function Documents() {
+  const { t } = useI18n();
   const q = useQuery({ queryKey: ['documents'], queryFn: storageApi.documents });
   const groups: [string, DocItem[]][] = [
     ['Contracts', q.data?.agreements ?? []], ['Invoices', q.data?.invoices ?? []], ['Receipts', q.data?.receipts ?? []],
   ];
-  if (q.isLoading) return <Text color="ink2">Loading…</Text>;
-  if (groups.every(([, items]) => !items.length)) return <Text color="ink2">No documents yet.</Text>;
+  if (q.isLoading) return <Text color="ink2">{t('Loading…')}</Text>;
+  if (groups.every(([, items]) => !items.length)) return <Text color="ink2">{t('No documents yet.')}</Text>;
   return (
     <View style={{ gap: 14 }}>
       {groups.map(([title, items]) => items.length ? (
         <Card key={title} style={{ paddingVertical: 14 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2 }}>
-            <Text variant="title">{title}</Text>
+            <Text variant="title">{t(title)}</Text>
             <Text variant="h3" color="ink3">{items.length}</Text>
           </View>
           {items.map((d) => (
             <Row key={d.id} leading={<RowIcon icon={DOC_ICON[d.kind]} />} title={d.title} sub={shortDate(d.date)}
-              onPress={() => openDocument(d).catch((e) => Alert.alert('Document', e.message))}
-              right={d.amount !== undefined ? <Text variant="meta" color="ink">{aed(d.amount)}</Text> : d.status ? <StatusChip label={d.status.replace('_', ' ')} /> : undefined} />
+              onPress={() => openDocument(d).catch((e) => Alert.alert(t('Document'), e.message))}
+              right={d.amount !== undefined ? <Text variant="meta" color="ink">{aed(d.amount)}</Text> : d.status ? <StatusChip label={statusText(d.status)} /> : undefined} />
           ))}
         </Card>
       ) : null)}
@@ -50,13 +55,13 @@ async function signPending(router: ReturnType<typeof useRouter>) {
   try {
     const b = await bookingApi.current();
     if (b && b.state === 'ready_to_sign') router.push({ pathname: '/book/sign', params: { id: b.bookingId } });
-    else Alert.alert('Sign contract', 'We could not find a contract ready to sign. Please message us and we will sort it out.');
-  } catch (e: any) { Alert.alert('Sign contract', e.message); }
+    else Alert.alert(tr('Sign contract'), tr('We could not find a contract ready to sign. Please message us and we will sort it out.'));
+  } catch (e: any) { Alert.alert(tr('Sign contract'), e.message); }
 }
 
 /** Small labelled action under a unit. */
 function UnitAction({ icon: Icon, label, onPress, primary }: { icon: typeof Package; label: string; onPress: () => void; primary?: boolean }) {
-  return <Button title={label} icon={Icon} variant={primary ? 'accent' : 'soft'} onPress={onPress} style={{ flex: 1, height: 44, paddingHorizontal: 10 }} />;
+  return <Button title={label} icon={Icon} variant={primary ? 'accent' : 'soft'} onPress={onPress} style={{ flex: 1, height: 44, paddingHorizontal: 6, gap: 6 }} />;
 }
 
 type Event = { icon: LucideIcon; title: string; sub: string; at: string; state: 'done' | 'current' | 'future'; onPress?: () => void };
@@ -110,6 +115,7 @@ function Activity({ contracts }: { contracts: Contract[] }) {
 export default function StorageTab() {
   const router = useRouter();
   const { c } = useTheme();
+  const { t } = useI18n();
   const params = useLocalSearchParams<{ tab?: string }>();
   const insets = useSafeAreaInsets();
   const [picked, setTab] = useState<'unit' | 'items' | 'documents' | null>(null);
@@ -124,14 +130,14 @@ export default function StorageTab() {
 
   return (
     <Screen>
-      <TabHeader title="My storage" right={<IconButton icon={Plus} label="Book a unit" tone="accent" onPress={() => router.push('/book')} />} />
+      <TabHeader title={t('My storage')} right={<IconButton icon={Plus} label={t('Book a unit')} tone="accent" onPress={() => router.push('/book')} />} />
       <Page loading={q.isLoading} error={q.error?.message} refreshing={q.isRefetching} onRefresh={() => q.refetch()}>
-        <Segmented value={tab} onChange={setTab} options={[{ value: 'unit', label: 'Unit' }, { value: 'items', label: 'Items' }, { value: 'documents', label: 'Documents' }]} />
+        <Segmented value={tab} onChange={setTab} options={[{ value: 'unit', label: t('Unit') }, { value: 'items', label: t('Items') }, { value: 'documents', label: t('Documents') }]} />
         {tab === 'documents' ? <Documents /> : tab === 'items' ? (
           <ItemsPanel selected={selected} onToggle={toggle} onSelectAll={(ids) => setSelected(new Set(ids))} />
         ) : (
           <>
-            {(q.data ?? []).length === 0 ? <Text color="ink2">No storage contracts on your account yet.</Text> : null}
+            {(q.data ?? []).length === 0 ? <Text color="ink2">{t('No storage contracts on your account yet.')}</Text> : null}
             {(q.data ?? []).map((k) => {
               const left = daysUntil(k.endDate);
               const p = termProgress(k);
@@ -144,44 +150,49 @@ export default function StorageTab() {
                     <View style={{ flex: 1, gap: 2 }}>
                       <Text variant="title">{k.units.map((u) => u.unitNumber).join(', ')}</Text>
                       <Text variant="meta">{k.contractNo}</Text>
-                      <Text variant="meta" color="ink">{aed(monthlyRate(k))} / month</Text>
+                      <Text variant="meta" color="ink">{t('{amount} / month', { amount: aed(monthlyRate(k)) })}</Text>
                     </View>
-                    <StatusChip label={k.status.replace('_', ' ')} tone={k.status === 'active' ? 'ok' : k.status === 'ended' ? 'neutral' : 'warn'} />
+                    <StatusChip label={statusText(k.status)} tone={k.status === 'active' ? 'ok' : k.status === 'ended' ? 'neutral' : 'warn'} />
                   </View>
                   <View style={{ gap: 10 }}>
                     <Text variant="meta" color="ink">
-                      {k.status === 'active' && left !== null && left > 0 ? `${left} days left` : k.status.replace('_', ' ')}
+                      {k.status === 'active' && left !== null && left > 0 ? t('{n} days left', { n: left }) : statusText(k.status)}
                     </Text>
                     <Meter value={p} color={color} />
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                      <Text variant="meta">In {shortDate(k.startDate)}</Text>
-                      <Text variant="meta">Out {shortDate(k.endDate)}</Text>
+                      <Text variant="meta">{t('In {date}', { date: shortDate(k.startDate) })}</Text>
+                      <Text variant="meta">{t('Out {date}', { date: shortDate(k.endDate) })}</Text>
                     </View>
                   </View>
                   {sent.map((r) => (
-                    <StatusChip key={r.id} tone="brand" label={`${REQUEST_LABEL[r.kind]} · ${shortDate(new Date(r.at).toISOString())}`} />
+                    <StatusChip key={r.id} tone="brand" label={`${t(REQUEST_LABEL[r.kind])} · ${shortDate(new Date(r.at).toISOString())}`} />
                   ))}
                   {k.status === 'pending_signature' ? (
                     <View style={{ flexDirection: 'row', gap: 8 }}>
-                      <UnitAction primary icon={FileSignature} label="Sign contract" onPress={() => signPending(router)} />
+                      <UnitAction primary icon={FileSignature} label={t('Sign contract')} onPress={() => signPending(router)} />
                     </View>
                   ) : k.status === 'active' ? (
                     <View style={{ flexDirection: 'row', gap: 8 }}>
-                      {owing ? <UnitAction primary icon={CreditCard} label="Pay" onPress={() => router.navigate('/(tabs)/payments')} /> : null}
-                      <UnitAction icon={FileText} label="Documents" onPress={() => setTab('documents')} />
-                      <UnitAction icon={LogOut} label="Move out" onPress={() => router.push({ pathname: '/checkout', params: { contractId: k.id } })} />
+                      {owing ? <UnitAction primary icon={CreditCard} label={t('Pay')} onPress={() => router.navigate('/(tabs)/payments')} /> : null}
+                      <UnitAction icon={FileText} label={t('Documents')} onPress={() => setTab('documents')} />
+                      <UnitAction icon={LogOut} label={t('Move out')} onPress={() => router.push({ pathname: '/checkout', params: { contractId: k.id } })} />
+                    </View>
+                  ) : null}
+                  {k.status === 'active' ? (
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <UnitAction icon={Users} label={`${t('Who can enter')}${k.authorizedPersons.length ? ` · ${k.authorizedPersons.length}` : ''}`} onPress={() => router.push({ pathname: '/access', params: { contractId: k.id } })} />
                     </View>
                   ) : k.status === 'ended' ? (
                     <View style={{ flexDirection: 'row', gap: 8 }}>
-                      <UnitAction primary icon={Undo2} label="Request refund" onPress={() => router.push({ pathname: '/refund', params: { contractId: k.id } })} />
-                      <UnitAction icon={FileText} label="Documents" onPress={() => setTab('documents')} />
+                      <UnitAction primary icon={Undo2} label={t('Request refund')} onPress={() => router.push({ pathname: '/refund', params: { contractId: k.id } })} />
+                      <UnitAction icon={FileText} label={t('Documents')} onPress={() => setTab('documents')} />
                     </View>
                   ) : null}
                 </Card>
               );
             })}
-            <Button title={(q.data ?? []).length ? 'Book another unit' : 'Book a unit'} icon={Plus} onPress={() => router.push('/book')} />
-            <Button title="Estimate the space I need" variant="soft" icon={Calculator} onPress={() => router.push('/estimator')} />
+            <Button title={(q.data ?? []).length ? t('Book another unit') : t('Book a unit')} icon={Plus} onPress={() => router.push('/book')} />
+            <Button title={t('Estimate the space I need')} variant="soft" icon={Calculator} onPress={() => router.push('/estimator')} />
             <Activity contracts={q.data ?? []} />
           </>
         )}

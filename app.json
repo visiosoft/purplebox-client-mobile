@@ -40,6 +40,18 @@
       ],
       "expo-secure-store",
       [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "PurpleBox uses Face ID to keep your account, documents and payments private."
+        }
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "enableGooglePay": true
+        }
+      ],
+      [
         "expo-notifications",
         {
           "color": "#5B2BC9"

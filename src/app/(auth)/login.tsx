@@ -5,12 +5,16 @@ import { Button, Input, Screen, Text } from '@/components/ui';
 import { StatusChip } from '@/components/bits';
 import { ContactField, ContactKind, contactValid, contactValue } from '@/components/ContactField';
 import { useAuth } from '@/store/auth';
+import { useI18n } from '@/i18n';
+
+const ltr = { textAlign: 'left', writingDirection: 'ltr' } as const; // digits always read left to right
 
 // One screen for everyone. A mobile or email we already hold opens that
 // customer's account with their units, contracts and invoices loaded — no
 // linking step. A new mobile starts an account and asks for a name next
 // (see profile.tsx); an email we don't hold is turned away by the server.
 export default function Login() {
+  const { t } = useI18n();
   const { requestOtp, verifyOtp } = useAuth();
   const [kind, setKind] = useState<ContactKind>('phone');
   const [contact, setContact] = useState('');
@@ -28,7 +32,7 @@ export default function Login() {
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true);
-    try { await fn(); } catch (e: any) { Alert.alert('Something went wrong', e.message); } finally { setBusy(false); }
+    try { await fn(); } catch (e: any) { Alert.alert(t('Something went wrong'), e.message); } finally { setBusy(false); }
   };
   const send = () => run(async () => {
     const r = await requestOtp(id);
@@ -42,24 +46,24 @@ export default function Login() {
       <View style={{ gap: 20 }}>
         <View style={{ gap: 8 }}>
           <StatusChip label="PurpleBox Storage" tone="brand" />
-          <Text variant="display" style={{ marginTop: 10 }}>{sentTo ? 'Check your\nmessages' : 'Log in or\nsign up'}</Text>
+          <Text variant="display" style={{ marginTop: 10 }}>{sentTo ? t('Check your\nmessages') : t('Log in or\nsign up')}</Text>
           <Text color="ink2">
             {sentTo
-              ? `Enter the code we sent to ${sentTo}.`
-              : 'Use the mobile or email you gave us. If you already rent with us, your units, contracts and invoices will be waiting.'}
+              ? t('Enter the code we sent to {phone}.', { phone: sentTo })
+              : t('Use the mobile or email you gave us. If you already rent with us, your units, contracts and invoices will be waiting.')}
           </Text>
         </View>
         {!sentTo ? (
           <>
             <ContactField kind={kind} onKind={setKind} value={contact} onChange={setContact} onSubmit={() => contactValid(kind, contact) && send()} />
-            <Button title="Send code" loading={busy} disabled={!contactValid(kind, contact)} onPress={send} />
+            <Button title={t('Send code')} loading={busy} disabled={!contactValid(kind, contact)} onPress={send} />
           </>
         ) : (
           <>
-            <Input label="Verification code" icon={ShieldCheck} keyboardType="number-pad" textContentType="oneTimeCode" autoComplete="one-time-code" value={code} onChangeText={setCode} maxLength={6} />
-            <Button title="Verify & continue" loading={busy} disabled={code.length < 4} onPress={() => run(() => verifyOtp(id, code))} />
-            <Button title={wait > 0 ? `Resend code in ${wait}s` : 'Resend code'} variant="soft" disabled={wait > 0 || busy} onPress={send} />
-            <Button title={kind === 'phone' ? 'Use a different number' : 'Use a different email'} variant="ghost" onPress={() => { setSentTo(null); setCode(''); }} />
+            <Input label={t('Verification code')} icon={ShieldCheck} style={ltr} keyboardType="number-pad" textContentType="oneTimeCode" autoComplete="one-time-code" value={code} onChangeText={setCode} maxLength={6} />
+            <Button title={t('Verify & continue')} loading={busy} disabled={code.length < 4} onPress={() => run(() => verifyOtp(id, code))} />
+            <Button title={wait > 0 ? t('Resend code in {n}s', { n: wait }) : t('Resend code')} variant="soft" disabled={wait > 0 || busy} onPress={send} />
+            <Button title={kind === 'phone' ? t('Use a different number') : t('Use a different email')} variant="ghost" onPress={() => { setSentTo(null); setCode(''); }} />
           </>
         )}
       </View>

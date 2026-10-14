@@ -10,6 +10,7 @@ import { ApiError } from '@/api/client';
 import { identityApi, isComplete, slotKey } from '@/api/identity';
 import { aed, shortDate } from '@/lib/format';
 import { useTheme } from '@/theme/useTheme';
+import { dateLocale, useI18n } from '@/i18n';
 import { fonts } from '@/theme/tokens';
 
 class NeedsId extends Error {}
@@ -18,6 +19,7 @@ const isoDay = (offset: number) => new Date(Date.now() + offset * DAY).toISOStri
 
 export default function ChooseUnit() {
   const router = useRouter();
+  const { t } = useI18n();
   const { c } = useTheme();
   const { size } = useLocalSearchParams<{ size?: string }>();
   const [offset, setOffset] = useState(0);
@@ -39,7 +41,7 @@ export default function ChooseUnit() {
       if (e instanceof ApiError && e.data?.code === 'profile_incomplete') {
         router.push({ pathname: '/book/details', params: { sizeSqf: String(sizeSqf), start, weeks: String(weeks) } });
       } else {
-        Alert.alert('Could not reserve', e.message);
+        Alert.alert(t('Could not reserve'), e.message);
         sizes.refetch();
       }
     },
@@ -47,16 +49,16 @@ export default function ChooseUnit() {
 
   return (
     <Screen>
-      <TopBar title="Book a unit" />
+      <TopBar title={t('Book a unit')} />
       <Page loading={false} error={sizes.error?.message} refreshing={sizes.isRefetching} onRefresh={() => sizes.refetch()}>
         <Steps current={0} />
         <Card variant="accent" style={{ flexDirection: 'row', gap: 12, alignItems: 'center', padding: 16 }}>
           <IdCard color="#262626" size={22} strokeWidth={1.6} />
-          <Text style={{ flex: 1 }}>About 5 minutes. Have your Emirates ID or passport and a card ready. We hold your unit while you pay.</Text>
+          <Text style={{ flex: 1 }}>{t('About 5 minutes. Have your Emirates ID or passport and a card ready. We hold your unit while you pay.')}</Text>
         </Card>
 
         <Card style={{ gap: 14 }}>
-          <Text variant="overline">Move-in date</Text>
+          <Text variant="overline">{t('Move-in date')}</Text>
           <HScroll itemWidth={58} selected={offset}>
             {Array.from({ length: 30 }, (_, i) => {
               const d = new Date(`${isoDay(i)}T12:00:00`);
@@ -66,52 +68,52 @@ export default function ChooseUnit() {
                   accessibilityLabel={shortDate(isoDay(i))}
                   style={{ width: 58, height: 72, borderRadius: 20, borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center', gap: 2,
                     backgroundColor: on ? c.br : c.sf2 }}>
-                  <Text variant="meta" style={{ color: on ? c.onBr : c.ink2 }}>{i === 0 ? 'Today' : d.toLocaleDateString('en-GB', { weekday: 'short' })}</Text>
+                  <Text variant="meta" style={{ color: on ? c.onBr : c.ink2 }}>{i === 0 ? t('Today') : d.toLocaleDateString(dateLocale(), { weekday: 'short' })}</Text>
                   <Text style={{ fontFamily: fonts.regular, fontSize: 22, color: on ? c.onBr : c.ink }}>{d.getDate()}</Text>
-                  <Text variant="meta" style={{ color: on ? c.onBr : c.ink3, fontSize: 11 }}>{d.toLocaleDateString('en-GB', { month: 'short' })}</Text>
+                  <Text variant="meta" style={{ color: on ? c.onBr : c.ink3, fontSize: 11 }}>{d.toLocaleDateString(dateLocale(), { month: 'short' })}</Text>
                 </Pressable>
               );
             })}
           </HScroll>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
-            <Text variant="overline">Term</Text>
-            <Text variant="meta">Until {shortDate(isoDay(offset + weeks * 7))}</Text>
+            <Text variant="overline">{t('Term')}</Text>
+            <Text variant="meta">{t('Until {date}', { date: shortDate(isoDay(offset + weeks * 7)) })}</Text>
           </View>
           <HScroll itemWidth={58} selected={TERM_WEEKS.indexOf(weeks)}>
             {TERM_WEEKS.map((w) => {
               const on = w === weeks;
               return (
                 <Pressable key={w} onPress={() => setWeeks(w)} accessibilityRole="button" accessibilityState={{ selected: on }}
-                  accessibilityLabel={`${w} weeks`}
+                  accessibilityLabel={t('{n} weeks', { n: w })}
                   style={{ width: 58, height: 58, borderRadius: 20, borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center',
                     backgroundColor: on ? c.br : c.sf2 }}>
                   <Text style={{ fontFamily: fonts.regular, fontSize: 20, color: on ? c.onBr : c.ink }}>{w}</Text>
-                  <Text variant="meta" style={{ color: on ? c.onBr : c.ink3, fontSize: 11 }}>weeks</Text>
+                  <Text variant="meta" style={{ color: on ? c.onBr : c.ink3, fontSize: 11 }}>{t('weeks')}</Text>
                 </Pressable>
               );
             })}
           </HScroll>
         </Card>
 
-        {sizes.isLoading ? <Text color="ink2">Checking availability…</Text> : null}
-        {sizes.data && sizes.data.length === 0 ? <Text color="ink2">No units are free for those dates. Try another date.</Text> : null}
+        {sizes.isLoading ? <Text color="ink2">{t('Checking availability…')}</Text> : null}
+        {sizes.data && sizes.data.length === 0 ? <Text color="ink2">{t('No units are free for those dates. Try another date.')}</Text> : null}
 
         {(sizes.data ?? []).map((s) => (
           <Card key={s.sizeSqf} style={{ gap: 14 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <View style={{ gap: 2 }}>
-                {String(s.sizeSqf) === size ? <StatusChip tone="brand" label="Recommended for you" /> : null}
-                <Text variant="h2">{s.sizeSqf} sq ft</Text>
-                <Text variant="meta">{aed(s.monthlyRate)}/month{s.discountPct ? ` · ${s.discountPct}% off first month` : ''}</Text>
+                {String(s.sizeSqf) === size ? <StatusChip tone="brand" label={t('Recommended for you')} /> : null}
+                <Text variant="h2">{t('{n} sq ft', { n: s.sizeSqf })}</Text>
+                <Text variant="meta">{t('{price}/month', { price: aed(s.monthlyRate) })}{s.discountPct ? ` · ${t('{pct}% off first month', { pct: s.discountPct })}` : ''}</Text>
               </View>
-              <StatusChip tone={s.available <= 2 ? 'warn' : 'ok'} label={s.available <= 2 ? `Only ${s.available} left` : `${s.available} free`} />
+              <StatusChip tone={s.available <= 2 ? 'warn' : 'ok'} label={s.available <= 2 ? t('Only {n} left', { n: s.available }) : t('{n} free', { n: s.available })} />
             </View>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <View>
-                <Text variant="meta">Pay today</Text>
+                <Text variant="meta">{t('Pay today')}</Text>
                 <Text variant="h3">{aed(s.payToday)}</Text>
               </View>
-              <Button title="Reserve" variant="accent" style={{ height: 46 }}
+              <Button title={t('Reserve')} variant="accent" style={{ height: 46 }}
                 loading={reserve.isPending && reserve.variables === s.sizeSqf} disabled={reserve.isPending}
                 onPress={() => reserve.mutate(s.sizeSqf)} />
             </View>

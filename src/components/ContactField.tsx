@@ -3,6 +3,9 @@ import { AtSign, Phone } from 'lucide-react-native';
 import { Input } from './ui';
 import { Segmented } from './bits';
 import { toE164 } from '@/lib/format';
+import { useI18n } from '@/i18n';
+
+const ltr = { textAlign: 'left', writingDirection: 'ltr' } as const; // numbers and emails read left to right
 
 export type ContactKind = 'phone' | 'email';
 
@@ -22,16 +25,17 @@ export const contactValid = (kind: ContactKind, raw: string) =>
 export function ContactField({ kind, onKind, value, onChange, onSubmit }: {
   kind: ContactKind; onKind: (k: ContactKind) => void; value: string; onChange: (v: string) => void; onSubmit?: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <View style={{ gap: 12 }}>
       <Segmented value={kind} onChange={(k) => { onKind(k); onChange(''); }}
-        options={[{ value: 'phone', label: 'Mobile' }, { value: 'email', label: 'Email' }]} />
+        options={[{ value: 'phone', label: t('Mobile') }, { value: 'email', label: t('Email') }]} />
       {kind === 'phone' ? (
-        <Input key="phone" label="Mobile number" icon={Phone} placeholder="+971 50 123 4567" keyboardType="phone-pad" autoComplete="tel"
-          value={value} onChangeText={onChange} returnKeyType="done" onSubmitEditing={onSubmit} />
+        <Input key="phone" label={t('Mobile number')} icon={Phone} placeholder="+971 50 123 4567" keyboardType="phone-pad" autoComplete="tel"
+          value={value} onChangeText={onChange} returnKeyType="done" onSubmitEditing={onSubmit} style={ltr} />
       ) : (
-        <Input key="email" label="Email address" icon={AtSign} placeholder="you@example.com" keyboardType="email-address" autoComplete="email"
-          autoCapitalize="none" autoCorrect={false} value={value} onChangeText={onChange} returnKeyType="done" onSubmitEditing={onSubmit} />
+        <Input key="email" label={t('Email address')} icon={AtSign} placeholder="you@example.com" keyboardType="email-address" autoComplete="email"
+          autoCapitalize="none" autoCorrect={false} value={value} onChangeText={onChange} returnKeyType="done" onSubmitEditing={onSubmit} style={ltr} />
       )}
     </View>
   );

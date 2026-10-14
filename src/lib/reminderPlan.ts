@@ -1,3 +1,5 @@
+import { tr } from '@/i18n';
+
 // When to nudge someone about an unfinished booking: about 3 hours after they started (today), then the next day,
 // then 3 days after that first day. Never at night: anything outside 09:00-21:00 waits for 10:00 the next morning.
 export const REMINDER_COUNT = 3;
@@ -23,17 +25,19 @@ export type ReminderBooking = { bookingId: string; quoteNo: string; state: strin
 
 /** The wording changes with how far along the booking is and with which reminder this is. */
 export function reminderCopy(b: ReminderBooking, n: number): { title: string; body: string } {
-  const unit = b.unitNumber ? `Unit ${b.unitNumber}${b.sizeSqf ? ` (${b.sizeSqf} sq ft)` : ''}` : 'your storage unit';
+  const unit = b.unitNumber
+    ? (b.sizeSqf ? tr('Unit {no} ({size} sq ft)', { no: b.unitNumber, size: b.sizeSqf }) : tr('Unit {no}', { no: b.unitNumber }))
+    : tr('your storage unit');
   if (b.state === 'ready_to_sign') {
     return {
-      title: n === 0 ? 'One last step: sign your contract' : n === 1 ? 'Your contract is waiting' : 'Final reminder: sign your contract',
-      body: `Booking ${b.quoteNo}: payment received. Sign your contract to activate ${unit}.`,
+      title: n === 0 ? tr('One last step: sign your contract') : n === 1 ? tr('Your contract is waiting') : tr('Final reminder: sign your contract'),
+      body: tr('Booking {no}: payment received. Sign your contract to activate {unit}.', { no: b.quoteNo, unit }),
     };
   }
   return {
-    title: n === 0 ? 'Finish your booking' : n === 1 ? 'Still need storage?' : 'Last reminder for your booking',
+    title: n === 0 ? tr('Finish your booking') : n === 1 ? tr('Still need storage?') : tr('Last reminder for your booking'),
     body: n === 2
-      ? `Booking ${b.quoteNo} for ${unit} is still not complete. Tap to finish it or pick a new unit.`
-      : `You started booking ${b.quoteNo} for ${unit} but haven't paid yet. Tap to finish it.`,
+      ? tr('Booking {no} for {unit} is still not complete. Tap to finish it or pick a new unit.', { no: b.quoteNo, unit })
+      : tr("You started booking {no} for {unit} but haven't paid yet. Tap to finish it.", { no: b.quoteNo, unit }),
   };
 }
