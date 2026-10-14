@@ -2,7 +2,9 @@ import { Children, ReactNode, useEffect, useState } from 'react';
 import { Pressable, ScrollView, RefreshControl, View } from 'react-native';
 import Animated, { FadeInDown, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
-import { ChevronRight, type LucideIcon } from 'lucide-react-native';
+import { type LucideIcon } from 'lucide-react-native';
+import { useI18n } from '@/i18n';
+import { useDir } from '@/i18n/useDir';
 import { useTheme } from '@/theme/useTheme';
 import { fonts, radius } from '@/theme/tokens';
 import { Button, Text } from './ui';
@@ -51,6 +53,7 @@ export function Row({ title, sub, right, onPress, leading, dark }: {
   title: string; sub?: string; right?: ReactNode; onPress?: () => void; leading?: ReactNode; dark?: boolean;
 }) {
   const { c } = useTheme();
+  const { ChevronForward } = useDir();
   return (
     <Pressable onPress={onPress} disabled={!onPress}
       style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, opacity: pressed ? 0.7 : 1 })}>
@@ -59,7 +62,7 @@ export function Row({ title, sub, right, onPress, leading, dark }: {
         <Text variant="title" color={dark ? 'onDk' : 'ink'} style={{ fontSize: 15 }}>{title}</Text>
         {sub ? <Text variant="meta" color={dark ? 'onDk3' : 'ink3'}>{sub}</Text> : null}
       </View>
-      {right ?? (onPress ? <ChevronRight color={dark ? c.onDk3 : c.ink3} size={18} strokeWidth={1.6} /> : null)}
+      {right ?? (onPress ? <ChevronForward color={dark ? c.onDk3 : c.ink3} size={18} strokeWidth={1.6} /> : null)}
     </Pressable>
   );
 }
@@ -89,6 +92,7 @@ export function Page({ children, loading, error, refreshing, onRefresh }: {
   children: ReactNode; loading?: boolean; error?: string | null; refreshing?: boolean; onRefresh?: () => void;
 }) {
   const { c } = useTheme();
+  const { t } = useI18n();
   const reduced = useReducedMotion();
   if (loading) return <View style={{ gap: 14 }}><Skeleton height={220} /><Skeleton height={120} /><Skeleton height={120} /></View>;
   return (
@@ -97,7 +101,7 @@ export function Page({ children, loading, error, refreshing, onRefresh }: {
       {error ? (
         <View style={{ gap: 10, backgroundColor: c.errBg, borderRadius: radius.card, padding: 16 }}>
           <Text style={{ color: c.err }}>{error}</Text>
-          {onRefresh ? <Button title="Try again" variant="soft" style={{ height: 44 }} onPress={onRefresh} /> : null}
+          {onRefresh ? <Button title={t('Try again')} variant="soft" style={{ height: 44 }} onPress={onRefresh} /> : null}
         </View>
       ) : null}
       {Children.toArray(children).map((child, i) => (
@@ -111,12 +115,15 @@ export function Page({ children, loading, error, refreshing, onRefresh }: {
 export const BOOKING_STEPS = ['Size', 'ID', 'Pay', 'Sign'] as const;
 export function Steps({ current }: { current: 0 | 1 | 2 | 3 }) {
   const { c } = useTheme();
+  const { t } = useI18n();
+  const stepName = t(BOOKING_STEPS[current]);
+  const vars = { n: current + 1, total: BOOKING_STEPS.length, name: stepName };
   return (
-    <View style={{ gap: 8 }} accessibilityLabel={`Step ${current + 1} of ${BOOKING_STEPS.length}: ${BOOKING_STEPS[current]}`}>
+    <View style={{ gap: 8 }} accessibilityLabel={t('Step {n} of {total}: {name}', vars)}>
       <View style={{ flexDirection: 'row', gap: 6 }}>
         {BOOKING_STEPS.map((l, i) => <View key={l} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i <= current ? c.br : c.sf3 }} />)}
       </View>
-      <Text variant="meta">Step {current + 1} of {BOOKING_STEPS.length} · {BOOKING_STEPS[current]}</Text>
+      <Text variant="meta">{t('Step {n} of {total} · {name}', vars)}</Text>
     </View>
   );
 }
@@ -172,6 +179,7 @@ const arc = (cx: number, cy: number, r: number, t0: number, t1: number) => {
 /** The half-moon gauge from "Security status": a yellow arc for the value, a charcoal one for the rest. */
 export function Gauge({ value, label, caption, size = 240 }: { value: number; label: string; caption?: string; size?: number }) {
   const { c, isDark } = useTheme();
+  const { isRTL } = useI18n();
   const v = Math.min(1, Math.max(0, value));
   const stroke = size * 0.13;
   const r = (size - stroke) / 2;
@@ -181,7 +189,7 @@ export function Gauge({ value, label, caption, size = 240 }: { value: number; la
   const gap = 0.07;
   return (
     <View style={{ width: size, height: h, alignSelf: 'center' }}>
-      <Svg width={size} height={h}>
+      <Svg width={size} height={h} style={isRTL ? { transform: [{ scaleX: -1 }] } : undefined}>
         {v > 0.01 ? <Path d={arc(cx, cy, r, 0, Math.max(0.001, v - (v < 1 ? gap / 2 : 0)))} stroke={c.ac} strokeWidth={stroke} strokeLinecap="round" fill="none" /> : null}
         {v < 0.99 ? <Path d={arc(cx, cy, r, Math.min(0.999, v + (v > 0 ? gap / 2 : 0)), 1)} stroke={isDark ? c.sf3 : c.dk} strokeWidth={stroke} strokeLinecap="round" fill="none" /> : null}
       </Svg>
@@ -242,7 +250,8 @@ export function LineChart({ points, labels, format, height = 120 }: {
   const s = Math.min(sel, points.length - 1);
   const [sx, sy] = xy[s] ?? [0, 0];
   return (
-    <View onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+    // the chart is drawn left-to-right (oldest month first), so keep its layout that way in Arabic too
+    <View style={{ direction: 'ltr' }} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
       {w > 0 && points.length ? (
         <View style={{ height }}>
           <Svg width={w} height={height}>

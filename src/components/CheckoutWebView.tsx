@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useTheme } from '@/theme/useTheme';
+import { tr } from '@/i18n';
 
 // Hosted-page mode: anything on Stripe's own domains (and the wallets / bank pages it hands off to) is still "paying".
 // The first page outside them is the server's success or cancel address, which means we're done.
@@ -18,7 +19,7 @@ const embeddedHtml = (publishableKey: string, clientSecret: string) => `<!doctyp
     var stripe = Stripe(${JSON.stringify(publishableKey)});
     var checkout = await stripe.initEmbeddedCheckout({ clientSecret: ${JSON.stringify(clientSecret)}, onComplete: function(){ window.ReactNativeWebView.postMessage('complete'); } });
     checkout.mount('#c');
-  } catch (e) { window.ReactNativeWebView.postMessage('error:' + (e && e.message ? e.message : 'Could not start payment')); }
+  } catch (e) { window.ReactNativeWebView.postMessage('error:' + (e && e.message ? e.message : ${JSON.stringify(tr('Could not start payment'))})); }
 })();
 </script></body></html>`;
 

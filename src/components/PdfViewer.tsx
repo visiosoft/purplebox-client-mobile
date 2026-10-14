@@ -3,10 +3,12 @@ import { ActivityIndicator, View } from 'react-native';
 import Pdf from 'react-native-pdf';
 import { Text } from '@/components/ui';
 import { useTheme } from '@/theme/useTheme';
+import { useI18n } from '@/i18n';
 
 /** Renders a PDF already saved on the phone (phones: react-native-pdf). Pinch to zoom, scroll to read. */
 export function PdfViewer({ uri, onError }: { uri: string; onError?: (message: string) => void }) {
   const { c } = useTheme();
+  const { t } = useI18n();
   const [page, setPage] = useState<[number, number]>([1, 1]);
   return (
     <View style={{ flex: 1, borderRadius: 24, overflow: 'hidden', backgroundColor: c.sf2 }}>
@@ -20,7 +22,7 @@ export function PdfViewer({ uri, onError }: { uri: string; onError?: (message: s
         renderActivityIndicator={() => <ActivityIndicator color={c.ink} />}
         onLoadComplete={(n) => setPage([1, n])}
         onPageChanged={(p, n) => setPage([p, n])}
-        onError={(e) => onError?.(e instanceof Error ? e.message : 'Could not open this document')}
+        onError={(e) => onError?.(e instanceof Error ? e.message : t('Could not open this document'))}
       />
       {page[1] > 1 ? (
         <View style={{ position: 'absolute', bottom: 14, alignSelf: 'center', backgroundColor: 'rgba(38,38,38,0.8)', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 6 }}>

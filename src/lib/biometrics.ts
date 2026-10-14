@@ -1,11 +1,12 @@
 import { Platform } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
+import { tr } from '@/i18n';
 
 export type BiometricInfo = { available: boolean; label: string };
 
 /** Whether this phone can check Face ID / fingerprint right now, and what to call it. Never throws. */
 export async function biometricInfo(): Promise<BiometricInfo> {
-  const none = { available: false, label: 'biometrics' };
+  const none = { available: false, label: tr('biometrics') };
   if (Platform.OS === 'web') return none;
   try {
     const [hardware, enrolled, types] = await Promise.all([
@@ -15,8 +16,8 @@ export async function biometricInfo(): Promise<BiometricInfo> {
     const face = types.includes(T.FACIAL_RECOGNITION);
     const finger = types.includes(T.FINGERPRINT);
     const label = Platform.OS === 'ios'
-      ? (face ? 'Face ID' : finger ? 'Touch ID' : 'biometrics')
-      : (finger ? 'fingerprint' : face ? 'face unlock' : 'biometrics');
+      ? (face ? 'Face ID' : finger ? 'Touch ID' : tr('biometrics'))
+      : (finger ? tr('fingerprint') : face ? tr('face unlock') : tr('biometrics'));
     return { available: hardware && enrolled, label };
   } catch {
     return none;
@@ -30,7 +31,7 @@ export async function biometricInfo(): Promise<BiometricInfo> {
 export async function confirmIdentity(reason: string): Promise<boolean> {
   if (Platform.OS === 'web') return true;
   try {
-    const r = await LocalAuthentication.authenticateAsync({ promptMessage: reason, cancelLabel: 'Cancel', fallbackLabel: 'Use passcode' });
+    const r = await LocalAuthentication.authenticateAsync({ promptMessage: reason, cancelLabel: tr('Cancel'), fallbackLabel: tr('Use passcode') });
     return r.success;
   } catch {
     return false;

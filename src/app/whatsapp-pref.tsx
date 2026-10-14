@@ -6,6 +6,7 @@ import { MessageCircle, Phone, ShieldCheck } from 'lucide-react-native';
 import { Button, Card, Input, Screen, Text, TopBar } from '@/components/ui';
 import { profileApi } from '@/api/profile';
 import { useProfile } from '@/hooks/useProfile';
+import { useI18n } from '@/i18n';
 import { toE164 } from '@/lib/format';
 import { useTheme } from '@/theme/useTheme';
 import { fonts } from '@/theme/tokens';
@@ -13,6 +14,7 @@ import { fonts } from '@/theme/tokens';
 // Where should invoices and updates reach you on WhatsApp? Your login number, or another one we check with a code.
 export default function WhatsappPref() {
   const router = useRouter();
+  const { t } = useI18n();
   const qc = useQueryClient();
   const { c } = useTheme();
   const { customer } = useProfile();
@@ -24,7 +26,7 @@ export default function WhatsappPref() {
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
-    try { await fn(); } catch (e: any) { Alert.alert('WhatsApp', e.message); } finally { setBusy(false); }
+    try { await fn(); } catch (e: any) { Alert.alert(t('WhatsApp'), e.message); } finally { setBusy(false); }
   };
   const finish = async () => { await qc.invalidateQueries({ queryKey: ['profile'] }); router.back(); };
   const e164 = toE164(phone);
@@ -48,29 +50,29 @@ export default function WhatsappPref() {
 
   return (
     <Screen style={{ gap: 16 }}>
-      <TopBar title="WhatsApp" />
+      <TopBar title={t('WhatsApp')} />
       <View style={{ marginTop: -8 }}>
-        <Text color="ink2">Choose where we send invoices, reminders and updates on WhatsApp. We only message you about your storage.</Text>
+        <Text color="ink2">{t('Choose where we send invoices, reminders and updates on WhatsApp. We only message you about your storage.')}</Text>
       </View>
 
-      {option('same', `Use ${customer?.phone ?? 'my login number'}`, 'The number you signed in with')}
-      {option('other', 'Use a different number', 'We will send it a code to confirm')}
+      {option('same', customer?.phone ? t('Use {phone}', { phone: customer.phone }) : t('Use my login number'), t('The number you signed in with'))}
+      {option('other', t('Use a different number'), t('We will send it a code to confirm'))}
 
       {choice === 'other' ? (
         sent ? (
           <>
-            <Input label="Code sent to WhatsApp" icon={ShieldCheck} keyboardType="number-pad" textContentType="oneTimeCode" maxLength={6} value={code} onChangeText={setCode} />
-            <Button title="Confirm number" loading={busy} disabled={code.length < 4} onPress={() => run(async () => { await profileApi.whatsappVerify(e164, code); await finish(); })} />
+            <Input label={t('Code sent to WhatsApp')} icon={ShieldCheck} keyboardType="number-pad" textContentType="oneTimeCode" maxLength={6} value={code} onChangeText={setCode} style={{ textAlign: 'left', writingDirection: 'ltr' }} />
+            <Button title={t('Confirm number')} loading={busy} disabled={code.length < 4} onPress={() => run(async () => { await profileApi.whatsappVerify(e164, code); await finish(); })} />
           </>
         ) : (
           <>
-            <Input label="WhatsApp number" icon={Phone} keyboardType="phone-pad" placeholder="+971 50 123 4567" value={phone} onChangeText={setPhone} />
-            <Button title="Send code" loading={busy} disabled={e164.replace(/\D/g, '').length < 11}
+            <Input label={t('WhatsApp number')} icon={Phone} keyboardType="phone-pad" placeholder="+971 50 123 4567" value={phone} onChangeText={setPhone} style={{ textAlign: 'left', writingDirection: 'ltr' }} />
+            <Button title={t('Send code')} loading={busy} disabled={e164.replace(/\D/g, '').length < 11}
               onPress={() => run(async () => { const r = await profileApi.whatsappRequest(e164); if (r.code) setCode(r.code); setSent(true); })} />
           </>
         )
       ) : (
-        <Button title="Save" icon={MessageCircle} loading={busy} onPress={() => run(async () => { await profileApi.whatsappSame(); await finish(); })} />
+        <Button title={t('Save')} icon={MessageCircle} loading={busy} onPress={() => run(async () => { await profileApi.whatsappSame(); await finish(); })} />
       )}
     </Screen>
   );

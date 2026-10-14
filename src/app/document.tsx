@@ -7,9 +7,11 @@ import { Button, IconButton, Screen, Text, TopBar } from '@/components/ui';
 import { PdfViewer } from '@/components/PdfViewer';
 import { fetchDocument, shareDocument } from '@/api/storage';
 import { useTheme } from '@/theme/useTheme';
+import { useI18n } from '@/i18n';
 
 // Contracts, invoices and receipts open here, inside the app, so people can read them without leaving.
 export default function DocumentScreen() {
+  const { t } = useI18n();
   const { c } = useTheme();
   const { href, title, mime, ext } = useLocalSearchParams<{ href: string; title: string; mime?: string; ext?: string }>();
   const isImage = !!mime?.startsWith('image/');
@@ -25,21 +27,21 @@ export default function DocumentScreen() {
 
   return (
     <Screen style={{ paddingBottom: 16 }}>
-      <TopBar title={title} right={uri && Platform.OS !== 'web' ? <IconButton icon={Share2} label="Share or save" onPress={() => shareDocument(uri)} /> : undefined} />
+      <TopBar title={title} right={uri && Platform.OS !== 'web' ? <IconButton icon={Share2} label={t('Share or save')} onPress={() => shareDocument(uri)} /> : undefined} />
       <View style={{ flex: 1 }}>
         {error ? (
           <View style={{ gap: 12, paddingTop: 12 }}>
             <Text style={{ color: c.err }}>{error}</Text>
-            <Button title="Try again" variant="soft" onPress={() => { setError(null); setUri(null); setAttempt(attempt + 1); }} />
+            <Button title={t('Try again')} variant="soft" onPress={() => { setError(null); setUri(null); setAttempt(attempt + 1); }} />
           </View>
         ) : uri && isImage ? (
-          <Image source={uri} style={{ flex: 1, borderRadius: 24 }} contentFit="contain" onError={() => setError('Could not open this image')} />
+          <Image source={uri} style={{ flex: 1, borderRadius: 24 }} contentFit="contain" onError={() => setError(t('Could not open this image'))} />
         ) : uri ? (
           <PdfViewer uri={uri} onError={setError} />
         ) : (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 }}>
             <ActivityIndicator color={c.ink} />
-            <Text variant="meta">Opening document…</Text>
+            <Text variant="meta">{t('Opening document…')}</Text>
           </View>
         )}
       </View>

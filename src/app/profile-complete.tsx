@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Check, ChevronRight } from 'lucide-react-native';
+import { Check } from 'lucide-react-native';
 import { Button, Card, Screen, Text, TopBar } from '@/components/ui';
 import { Meter, Page, Row } from '@/components/bits';
 import { ChecklistRoute } from '@/api/profile';
+import { useDir } from '@/i18n/useDir';
+import { useI18n } from '@/i18n';
 import { useProfile } from '@/hooks/useProfile';
 import { usePrefs } from '@/store/prefs';
 import { useTheme } from '@/theme/useTheme';
@@ -27,6 +29,8 @@ function Tick({ done }: { done: boolean }) {
 export default function ProfileComplete() {
   const router = useRouter();
   const { c } = useTheme();
+  const { t } = useI18n();
+  const { ChevronForward } = useDir();
   const { welcome } = useLocalSearchParams<{ welcome?: string }>();
   const p = useProfile();
   const mark = usePrefs((s) => s.markProfilePromptSeen);
@@ -39,41 +43,41 @@ export default function ProfileComplete() {
 
   return (
     <Screen>
-      <TopBar title={welcome ? 'Welcome to PurpleBox' : 'Complete your profile'} onBack={welcome ? () => router.replace('/(tabs)') : undefined} />
-      <Page loading={p.isLoading} error={p.isError ? 'We could not load your profile. Pull down to try again.' : undefined} onRefresh={() => p.refetch()} refreshing={p.isRefetching}>
+      <TopBar title={welcome ? t('Welcome to PurpleBox') : t('Complete your profile')} onBack={welcome ? () => router.replace('/(tabs)') : undefined} />
+      <Page loading={p.isLoading} error={p.isError ? t('We could not load your profile. Pull down to try again.') : undefined} onRefresh={() => p.refetch()} refreshing={p.isRefetching}>
         <Text color="ink2">
-          {welcome ? 'A few quick steps help us serve you better. None of them are required, and you can finish them any time.' : 'Each step makes booking, payments and updates smoother.'}
+          {welcome ? t('A few quick steps help us serve you better. None of them are required, and you can finish them any time.') : t('Each step makes booking, payments and updates smoother.')}
         </Text>
 
         <Card variant="dark" style={{ gap: 12 }}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-            <Text variant="title" color="onDk">Profile strength</Text>
+            <Text variant="title" color="onDk">{t('Profile strength')}</Text>
             <Text variant="h1" color="onDk">{p.percent ?? 0}%</Text>
           </View>
           <Meter value={(p.percent ?? 0) / 100} color={c.ac} height={10} />
-          <Text variant="meta" color="onDk2">{done.length} of {p.items.length} steps done{next ? ` · next: ${next.title}` : ' · all done, thank you!'}</Text>
+          <Text variant="meta" color="onDk2">{t('{done} of {total} steps done', { done: done.length, total: p.items.length })}{next ? ` · ${t('next: {title}', { title: next.title })}` : ` · ${t('all done, thank you!')}`}</Text>
         </Card>
 
         {todo.length ? (
           <Card style={{ paddingVertical: 8 }}>
-            <Text variant="overline" color="ink3" style={{ marginTop: 10 }}>TO DO</Text>
+            <Text variant="overline" color="ink3" style={{ marginTop: 10 }}>{t('TO DO')}</Text>
             {todo.map((i) => (
               <Row key={i.key} leading={<Tick done={false} />} title={i.title} sub={i.hint} onPress={PATH[i.route] ? () => open(i.route) : undefined}
-                right={PATH[i.route] ? <ChevronRight color={c.ink3} size={18} strokeWidth={1.6} /> : undefined} />
+                right={PATH[i.route] ? <ChevronForward color={c.ink3} size={18} strokeWidth={1.6} /> : undefined} />
             ))}
           </Card>
         ) : null}
 
         {done.length ? (
           <Card style={{ paddingVertical: 8 }}>
-            <Text variant="overline" color="ink3" style={{ marginTop: 10 }}>DONE</Text>
+            <Text variant="overline" color="ink3" style={{ marginTop: 10 }}>{t('DONE')}</Text>
             {done.map((i) => (
               <Row key={i.key} leading={<Tick done />} title={i.title} onPress={PATH[i.route] ? () => open(i.route) : undefined} />
             ))}
           </Card>
         ) : null}
 
-        <Button title={welcome ? (todo.length ? 'Skip for now' : 'Continue') : 'Done'} variant={welcome && todo.length ? 'soft' : 'primary'}
+        <Button title={welcome ? (todo.length ? t('Skip for now') : t('Continue')) : t('Done')} variant={welcome && todo.length ? 'soft' : 'primary'}
           onPress={() => (welcome ? router.replace('/(tabs)') : router.back())} />
       </Page>
     </Screen>

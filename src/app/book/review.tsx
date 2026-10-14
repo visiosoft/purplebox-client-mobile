@@ -10,6 +10,7 @@ import { payInApp } from '@/lib/payInApp';
 import { syncBookingReminders } from '@/lib/reminders';
 import { usePrefs } from '@/store/prefs';
 import { aed, shortDate } from '@/lib/format';
+import { useI18n } from '@/i18n';
 
 function useCountdown(iso?: string) {
   const [left, setLeft] = useState(0);
@@ -25,6 +26,8 @@ function useCountdown(iso?: string) {
 
 export default function Review() {
   const router = useRouter();
+  const { t, isRTL } = useI18n();
+  const arrow = isRTL ? '←' : '→';
   const { id } = useLocalSearchParams<{ id: string }>();
   const q = useQuery({ queryKey: ['booking', id], queryFn: () => bookingApi.get(id) });
   const b = q.data;
@@ -40,17 +43,17 @@ export default function Review() {
   // Payment is confirmed to the server by Stripe, not by this app, so after the
   // browser closes we just go and look at where the booking has got to.
   const pay = useMutation({
-    mutationFn: () => payInApp({ kind: 'booking', id, label: b ? `Pay ${aed(b.pricing.totalWithFee)}` : undefined }),
+    mutationFn: () => payInApp({ kind: 'booking', id, label: b ? t('Pay {amount}', { amount: aed(b.pricing.totalWithFee) }) : undefined }),
     // 'handed-off' means Stripe's page is open in the app and takes us to the status screen itself when it finishes.
     onSuccess: (r) => { if (r === 'paid') router.replace({ pathname: '/book/status', params: { id } }); },
-    onError: (e) => Alert.alert('Payment', e.message),
+    onError: (e) => Alert.alert(t('Payment'), e.message),
   });
 
   if (b && b.state !== 'held') {
     return (
       <Screen style={{ justifyContent: 'center', gap: 16 }}>
-        <Text variant="h1">{b.state === 'expired' ? 'Your reservation has expired' : 'Booking in progress'}</Text>
-        <Button title={b.state === 'expired' ? 'Choose a unit again' : 'Continue'}
+        <Text variant="h1">{b.state === 'expired' ? t('Your reservation has expired') : t('Booking in progress')}</Text>
+        <Button title={b.state === 'expired' ? t('Choose a unit again') : t('Continue')}
           onPress={() => (b.state === 'expired' ? router.replace('/book') : router.replace({ pathname: '/book/status', params: { id } }))} />
       </Screen>
     );
@@ -58,15 +61,15 @@ export default function Review() {
 
   return (
     <Screen>
-      <TopBar title="Review & pay" onBack={() => router.replace('/(tabs)')} />
+      <TopBar title={t('Review & pay')} onBack={() => router.replace('/(tabs)')} />
       <Page loading={q.isLoading} error={q.error?.message}>
         {b ? (
           <>
             <Steps current={2} />
-            <StatusChip tone="brand" icon={Clock} label={`Held for ${mins}:${secs}`} />
+            <StatusChip tone="brand" icon={Clock} label={t('Held for {time}', { time: `${mins}:${secs}` })} />
             <Card style={{ gap: 4 }}>
-              <Text variant="h2">Unit {b.unit.unitNumber}</Text>
-              <Text variant="meta">{b.unit.sizeSqf} sq ft · {shortDate(b.unit.startDate)} → {shortDate(b.unit.endDate)}</Text>
+              <Text variant="h2">{t('Unit {no}', { no: b.unit.unitNumber })}</Text>
+              <Text variant="meta">{t('{n} sq ft', { n: b.unit.sizeSqf })} · {shortDate(b.unit.startDate)} {arrow} {shortDate(b.unit.endDate)}</Text>
             </Card>
             <Card variant="dark" style={{ gap: 12 }}>
               {b.pricing.lines.map((l, i) => (
@@ -77,20 +80,20 @@ export default function Review() {
               ))}
               <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.12)' }} />
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text color="onDk">Total</Text>
+                <Text color="onDk">{t('Total')}</Text>
                 <Text color="onDk">{aed(b.pricing.total)}</Text>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text variant="meta" color="onDk3">Card fee (3%)</Text>
+                <Text variant="meta" color="onDk3">{t('Card fee (3%)')}</Text>
                 <Text variant="meta" color="onDk3">{aed(b.pricing.cardFee)}</Text>
               </View>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 4 }}>
-                <Text variant="title" color="onDk">You pay</Text>
+                <Text variant="title" color="onDk">{t('You pay')}</Text>
                 <Text variant="h1" color="onDk">{aed(b.pricing.totalWithFee)}</Text>
               </View>
-              <Text variant="meta" color="onDk3">The refundable advance is returned at the end of your rental.</Text>
+              <Text variant="meta" color="onDk3">{t('The refundable advance is returned at the end of your rental.')}</Text>
             </Card>
-            <Button title={`Pay ${aed(b.pricing.totalWithFee)}`} variant="accent" icon={CreditCard} loading={pay.isPending} disabled={left === 0} onPress={() => pay.mutate()} />
+            <Button title={t('Pay {amount}', { amount: aed(b.pricing.totalWithFee) })} variant="accent" icon={CreditCard} loading={pay.isPending} disabled={left === 0} onPress={() => pay.mutate()} />
           </>
         ) : null}
       </Page>

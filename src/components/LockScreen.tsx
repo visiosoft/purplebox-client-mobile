@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { ScanFace } from 'lucide-react-native';
 import { Button, Text } from '@/components/ui';
 import { BoxArt } from '@/components/home';
+import { tr, useI18n } from '@/i18n';
 import { biometricInfo, confirmIdentity } from '@/lib/biometrics';
 import { useAuth } from '@/store/auth';
 import { useLock } from '@/store/lock';
@@ -12,6 +13,7 @@ import { fonts } from '@/theme/tokens';
 
 /** Covers the app until the owner proves it is them with Face ID or fingerprint (or the phone passcode). */
 export function LockScreen() {
+  const { t, isRTL } = useI18n();
   const locked = useLock((s) => s.locked);
   const signedIn = !!useAuth((s) => s.customer);
   const logout = useAuth((s) => s.logout);
@@ -25,7 +27,7 @@ export function LockScreen() {
       return;
     }
     useLock.getState().setBusy(true);
-    const ok = await confirmIdentity('Unlock PurpleBox');
+    const ok = await confirmIdentity(tr('Unlock PurpleBox'));
     useLock.getState().setBusy(false);
     if (ok) useLock.getState().unlock();
   }, []);
@@ -41,12 +43,12 @@ export function LockScreen() {
     <View style={[StyleSheet.absoluteFill, styles.wrap]} accessibilityViewIsModal>
       <View style={styles.center}>
         <BoxArt size={84} />
-        <Text style={styles.title}>PurpleBox is locked</Text>
-        <Text style={styles.sub}>Confirm it is you to continue.</Text>
+        <Text style={[styles.title, { fontFamily: fonts.light }, isRTL && { letterSpacing: 0 }]}>{t('PurpleBox is locked')}</Text>
+        <Text style={styles.sub}>{t('Confirm it is you to continue.')}</Text>
       </View>
       <View style={styles.actions}>
-        <Button title="Unlock" variant="accent" icon={ScanFace} onPress={unlock} />
-        <Button title="Sign out" variant="ghost" onPress={() => { useLock.getState().unlock(); logout(); }} style={{ opacity: 0.9 }} />
+        <Button title={t('Unlock')} variant="accent" icon={ScanFace} onPress={unlock} />
+        <Button title={t('Sign out')} variant="ghost" onPress={() => { useLock.getState().unlock(); logout(); }} style={{ opacity: 0.9 }} />
       </View>
     </View>
   );

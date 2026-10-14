@@ -6,6 +6,7 @@ import { ExternalLink, MapPin, Package, Zap, type LucideIcon } from 'lucide-reac
 import { Text } from '@/components/ui';
 import { useTheme } from '@/theme/useTheme';
 import { fonts, radius } from '@/theme/tokens';
+import { useI18n } from '@/i18n';
 
 /** A small isometric box: the PurpleBox mark, and the picture used when a unit photo can't load. */
 export function BoxArt({ size = 64, top = '#FFF6D1', left = '#262626', right = '#454545', label = '#F8D45C' }: { size?: number; top?: string; left?: string; right?: string; label?: string }) {
@@ -98,11 +99,12 @@ export type UnitCardData = { sizeSqf: number; img?: string; home?: string; fits?
 /** One available unit: photo with a badge, what it is, where, and the monthly price. Tap to reserve. */
 export function UnitCard({ u, onPress, priceText }: { u: UnitCardData; onPress: () => void; priceText: string }) {
   const { c } = useTheme();
+  const { t } = useI18n();
   const [failed, setFailed] = useState(false);
   const scarce = u.available !== undefined && u.available <= 2;
-  const badge = u.available === undefined ? (u.popular ? 'Popular' : null) : scarce ? `Only ${u.available} left` : u.popular ? 'Popular' : `${u.available} available`;
+  const badge = u.available === undefined ? (u.popular ? t('Popular') : null) : scarce ? t('Only {n} left', { n: u.available }) : u.popular ? t('Popular') : t('{n} available', { n: u.available });
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${u.sizeSqf} square foot unit, ${priceText} per month`}
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={t('{size} square foot unit, {price} per month', { size: u.sizeSqf, price: priceText })}
       style={({ pressed }) => ({ width: 176, borderRadius: radius.card, borderCurve: 'continuous', borderWidth: 1.5, borderColor: c.ln2, backgroundColor: c.sf, overflow: 'hidden', transform: [{ scale: pressed ? 0.97 : 1 }] })}>
       <View style={{ height: 118, backgroundColor: c.sf2, alignItems: 'center', justifyContent: 'center' }}>
         {u.img && !failed ? <Image source={u.img} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} contentFit="cover" transition={250} onError={() => setFailed(true)} /> : <BoxArt size={64} />}
@@ -114,25 +116,25 @@ export function UnitCard({ u, onPress, priceText }: { u: UnitCardData; onPress: 
         ) : null}
         {u.discountPct ? (
           <View style={{ position: 'absolute', bottom: 8, right: 8, backgroundColor: c.ac, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 }}>
-            <Text style={{ fontFamily: fonts.medium, fontSize: 12, color: c.acInk }}>{u.discountPct}% off</Text>
+            <Text style={{ fontFamily: fonts.medium, fontSize: 12, color: c.acInk }}>{t('{pct}% off', { pct: u.discountPct })}</Text>
           </View>
         ) : null}
       </View>
       <View style={{ padding: 12, gap: 6, flex: 1, justifyContent: 'space-between' }}>
         <View style={{ gap: 5 }}>
-          <Text numberOfLines={1} style={{ fontFamily: fonts.medium, fontSize: 17, letterSpacing: -0.3, color: c.ink }}>{u.sizeSqf} sq ft unit</Text>
+          <Text numberOfLines={1} style={{ fontFamily: fonts.medium, fontSize: 17, letterSpacing: -0.3, color: c.ink }}>{t('{size} sq ft unit', { size: u.sizeSqf })}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
             <Package color={c.warn} size={14} strokeWidth={1.7} />
-            <Text variant="meta" color="ink2" numberOfLines={1} style={{ flex: 1 }}>{u.home ?? 'Private unit'}</Text>
+            <Text variant="meta" color="ink2" numberOfLines={1} style={{ flex: 1 }}>{u.home ? t(u.home) : t('Private unit')}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
             <MapPin color={c.ink3} size={14} strokeWidth={1.7} />
-            <Text variant="meta" numberOfLines={1}>Al Quoz, Dubai</Text>
+            <Text variant="meta" numberOfLines={1}>{t('Al Quoz, Dubai')}</Text>
           </View>
         </View>
         <View style={{ alignItems: 'flex-end', marginTop: 4 }}>
           <Text style={{ fontFamily: fonts.medium, fontSize: 20, letterSpacing: -0.4, color: c.ink }}>{priceText}</Text>
-          <Text variant="meta">per month</Text>
+          <Text variant="meta">{t('per month')}</Text>
         </View>
       </View>
     </Pressable>
@@ -162,6 +164,7 @@ export function DealCard({ icon: Icon, title, sub, cta, onPress }: { icon: Lucid
 /** A wide photo banner with a headline on top: used for the "special deals" built from live discounts. */
 export function PhotoBanner({ img, title, sub, onPress }: { img?: string; title: string; sub: string; onPress: () => void }) {
   const { c } = useTheme();
+  const { t } = useI18n();
   const [failed, setFailed] = useState(false);
   return (
     <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`${title}. ${sub}`}
@@ -170,7 +173,7 @@ export function PhotoBanner({ img, title, sub, onPress }: { img?: string; title:
       <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(20,20,20,0.52)' }} />
       <View style={{ flex: 1, padding: 18, justifyContent: 'flex-end', gap: 4 }}>
         <View style={{ alignSelf: 'flex-start', backgroundColor: c.ac, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 }}>
-          <Text style={{ fontFamily: fonts.medium, fontSize: 13, color: c.acInk }}>Limited offer</Text>
+          <Text style={{ fontFamily: fonts.medium, fontSize: 13, color: c.acInk }}>{t('Limited offer')}</Text>
         </View>
         <Text style={{ fontFamily: fonts.medium, fontSize: 24, letterSpacing: -0.5, color: '#FFFFFF', lineHeight: 28 }}>{title}</Text>
         <Text style={{ color: 'rgba(255,255,255,0.85)', fontFamily: fonts.regular, fontSize: 13 }}>{sub}</Text>
