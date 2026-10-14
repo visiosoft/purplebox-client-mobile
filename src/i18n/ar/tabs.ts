@@ -85,6 +85,8 @@ export const tabs: Record<string, string> = {
   'Boxes & suitcases': 'صناديق وحقائب',
   'Studio / 1BHK': 'استوديو / غرفة وصالة',
   '2BHK apartment': 'شقة غرفتين وصالة',
+  'Full 1BHK apartment': 'شقة غرفة وصالة كاملة',
+  'Spacious enough for a full 1-bedroom apartment.': 'واسعة بما يكفي لمحتويات شقة غرفة نوم واحدة كاملة.',
   '1BHK + spare room': 'غرفة وصالة + غرفة إضافية',
   '2–3BHK apartment': 'شقة 2-3 غرف وصالة',
   '3BHK / small villa': '3 غرف وصالة / فيلا صغيرة',

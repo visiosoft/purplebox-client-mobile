@@ -9,7 +9,7 @@ const IMG = 'https://purplebox.ae/wp-content/uploads/2026/05';
 export const UNIT_CATALOG: CatalogUnit[] = [
   { sizeSqf: 10, img: `${IMG}/10_sq_.jpg`, home: 'Boxes & suitcases', from: 350, fits: 'Around 15–20 boxes, suitcases and documents. No large furniture — think of it as a large closet.' },
   { sizeSqf: 25, img: `${IMG}/25_sq.jpg`, home: 'Studio / 1BHK', from: 650, fits: 'A 1-bedroom apartment: bed frame, mattress, small wardrobe, a few chairs and roughly 20 boxes.' },
-  { sizeSqf: 35, img: `${IMG}/unit3.webp`, home: '2BHK apartment', from: 770, fits: 'A 2-bedroom apartment: two bedrooms of furniture, a sofa, dining table and about 25 boxes.' },
+  { sizeSqf: 35, img: `${IMG}/unit3.webp`, home: 'Full 1BHK apartment', from: 770, fits: 'Spacious enough for a full 1-bedroom apartment.' },
   { sizeSqf: 50, img: `${IMG}/50_sq.jpg`, home: '1BHK + spare room', from: 980, popular: true, fits: 'A full 1-bedroom apartment with walking space left over — the right pick if you visit often.' },
   { sizeSqf: 75, img: `${IMG}/75_sq_.jpg`, home: '2–3BHK apartment', from: 1400, popular: true, fits: 'A 2–3 bedroom apartment: sofas, beds, wardrobes, fridge, washing machine, dining set and 40+ boxes.' },
   { sizeSqf: 100, img: `${IMG}/100_sq.jpg`, home: '3BHK / small villa', from: 1700, fits: 'A small villa or 3-bed home: three bedrooms, full living and dining rooms, white goods, bicycles and boxes.' },
