@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { CalendarCheck, ChevronRight } from 'lucide-react-native';
 import { Card, Screen, TabHeader, Text } from '@/components/ui';
 import { Page, Segmented } from '@/components/bits';
-import { IconTile, RequestRow, SERVICE_ICON } from '@/components/service';
+import { IconTile, RequestRow, SERVICE_ICON, knownService } from '@/components/service';
 import { isOpen, servicesApi } from '@/api/services';
 import { aed } from '@/lib/format';
 import { useTheme } from '@/theme/useTheme';
@@ -27,7 +27,7 @@ export default function ServicesTab() {
         refreshing={q.isRefetching} onRefresh={() => { q.refetch(); catalog.refetch(); }}>
         <Card style={{ paddingVertical: 10 }}>
           <Text variant="title" style={{ paddingTop: 6, paddingBottom: 4 }}>Book a service</Text>
-          {(catalog.data?.services ?? []).map((s, i) => (
+          {(catalog.data?.services ?? []).filter((s) => knownService(s.type)).map((s, i) => (
             <Pressable key={s.type} onPress={() => router.push({ pathname: '/service/new', params: { type: s.type } })} accessibilityRole="button"
               style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, opacity: pressed ? 0.7 : 1, borderTopWidth: i ? 1 : 0, borderTopColor: c.ln })}>
               <IconTile icon={SERVICE_ICON[s.type]} />

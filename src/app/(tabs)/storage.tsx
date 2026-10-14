@@ -73,7 +73,7 @@ function Activity({ contracts }: { contracts: Contract[] }) {
       ...(k.status === 'active' ? [{ icon: CalendarClock, title: 'Scheduled check-out', sub: 'End of current agreement term', at: k.endDate, state: 'future' as const }] : []),
     ]),
     ...(services.data ?? []).filter((r) => r.status !== 'cancelled').map((r): Event => ({
-      icon: SERVICE_ICON[r.type], title: r.status === 'completed' ? SERVICE_LABEL[r.type] : `${SERVICE_LABEL[r.type]} · ${STATUS_LABEL[r.status].toLowerCase()}`,
+      icon: SERVICE_ICON[r.type], title: r.status === 'completed' ? SERVICE_LABEL[r.type] ?? 'Service' : `${SERVICE_LABEL[r.type] ?? 'Service'} · ${STATUS_LABEL[r.status].toLowerCase()}`,
       sub: `${r.ref} · ${whenLabel(r)}`, at: r.date, state: r.status === 'completed' ? 'done' : 'current',
       onPress: () => router.push({ pathname: '/service/[id]', params: { id: r.id } }),
     })),

@@ -110,7 +110,9 @@ export default function TrackRequest() {
               <Detail k={r.type === 'worker' ? 'Where' : 'Address'} v={`${r.address.label} · ${r.address.line}`} />
               {r.supplies ? <Detail k="Boxes & labels" v={`${r.supplies.boxes} boxes${r.supplies.extraLabels ? `, ${r.supplies.extraLabels} extra labels` : ''}`} /> : null}
               {r.pickup ? <Detail k="Collecting" v={`${r.pickup.boxes} boxes, ${r.pickup.bulky} bulky${r.pickup.description ? ` · ${r.pickup.description}` : ''}`} /> : null}
+              {r.type === 'worker' && r.workers ? <Detail k="Workers" v={`${r.workers} · ${r.hours} h`} /> : null}
               {r.job ? <Detail k="Job" v={r.job} /> : null}
+              {r.disposal ? <Detail k="Taking away" v={`${r.disposal.load === 'large' ? 'Full truck' : 'Small load'} · ${r.disposal.description}`} /> : null}
               {r.notes ? <Detail k="Instructions" v={r.notes} /> : null}
               <Detail k={r.charged != null ? 'Charged' : 'Estimate'} v={aed(r.charged ?? r.estimate.total)} />
             </Card>

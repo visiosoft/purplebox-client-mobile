@@ -4,14 +4,14 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CircleCheck, Info, MapPin, Plus } from 'lucide-react-native';
+import { CircleCheck, Info, MapPin, Plus, Warehouse } from 'lucide-react-native';
 import { Button, Card, Input, Screen, Text, TopBar } from '@/components/ui';
 import { Skeleton } from '@/components/bits';
 import { Calendar } from '@/components/Calendar';
 import { ChoiceCard, Chip, Code, ItemRow, SERVICE_ICON, Stepper } from '@/components/service';
 import {
-  SERVICE_LABEL, STATUS_LABEL, dayLabel, estimate, servicesApi,
-  type NewRequest, type ServiceRequest, type ServiceType,
+  SERVICE_LABEL, STATUS_LABEL, dayLabel, durationLabel, estimate, servicesApi,
+  type DisposalLoad, type NewRequest, type ServiceRequest, type ServiceType,
 } from '@/api/services';
 import { ApiError } from '@/api/client';
 import { aed } from '@/lib/format';
@@ -19,7 +19,7 @@ import { useTheme } from '@/theme/useTheme';
 import { radius } from '@/theme/tokens';
 
 const STEP_NAMES = ['Service', 'Details', 'When & where', 'Review'];
-const TYPES: ServiceType[] = ['supplies', 'pickup', 'dropoff', 'both', 'worker'];
+const TYPES: ServiceType[] = ['supplies', 'pickup', 'dropoff', 'both', 'worker', 'disposal'];
 const DAY = 86_400_000;
 const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 const toTime = (min: number) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
@@ -52,7 +52,10 @@ export default function NewServiceRequest() {
   const [newLine, setNewLine] = useState('');
   const [date, setDate] = useState<string | null>(null);
   const [slot, setSlot] = useState<string | null>(null);
-  const [hours, setHours] = useState(2);
+  const [hours, setHours] = useState(1);
+  const [workers, setWorkers] = useState(1);
+  const [load, setLoad] = useState<DisposalLoad | null>(null);
+  const [rubbish, setRubbish] = useState('');
   const [start, setStart] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [done, setDone] = useState<ServiceRequest | null>(null);
@@ -64,9 +67,10 @@ export default function NewServiceRequest() {
   const needsItems = type === 'dropoff' || type === 'both';
   const items = useQuery({ queryKey: ['items'], queryFn: servicesApi.items, enabled: needsItems });
   const worker = type === 'worker';
+  const disposal = type === 'disposal';
   const avail = useQuery({
-    queryKey: ['availability', type, date, worker ? hours : 0],
-    queryFn: () => servicesApi.availability(type!, date!, worker ? hours : undefined),
+    queryKey: ['availability', type, date, worker ? hours : 0, worker ? workers : 0],
+    queryFn: () => servicesApi.availability(type!, date!, worker ? { hours, workers } : undefined),
     enabled: !!type && !!date,
   });
 
@@ -74,11 +78,13 @@ export default function NewServiceRequest() {
   const stored = (items.data ?? []).filter((i) => i.status === 'stored');
   const chosenSlot = cat?.slots.find((s) => s.id === slot);
   const est = cat && type ? estimate(cat.prices, {
-    type, boxes, bulky, items: picked.size, supplyBoxes, evening: !!chosenSlot?.evening, hours,
+    type, boxes, bulky, items: picked.size, supplyBoxes, evening: !!chosenSlot?.evening, hours, workers, load,
   }) : null;
   const endTime = start ? toTime(toMin(start) + hours * 60) : null;
   const savedAddress = addresses.data?.find((a) => a.id === addressId);
-  const address = worker ? cat?.facility : addressId === 'new' ? { label: newLabel.trim(), line: newLine.trim() } : savedAddress;
+  // A dump truck can clear the customer's own unit — offered when they have one.
+  const hasUnit = !!cat?.facility.line.startsWith('Unit ');
+  const address = worker || addressId === 'unit' ? cat?.facility : addressId === 'new' ? { label: newLabel.trim(), line: newLine.trim() } : savedAddress;
 
   // What's missing on each step, in the customer's words. The button stays live and says it.
   const problem = (() => {
@@ -88,6 +94,8 @@ export default function NewServiceRequest() {
       if ((type === 'pickup' || type === 'both') && boxes + bulky < 1) return 'Tell us how many things to collect';
       if (needsItems && picked.size < 1) return 'Pick the items to deliver';
       if (worker && job.trim().length < 3) return 'Describe what you need help with';
+      if (disposal && !load) return 'Choose how big the load is';
+      if (disposal && rubbish.trim().length < 3) return 'Tell us what we’re taking away';
       return null;
     }
     if (step === 2) {
@@ -103,12 +111,14 @@ export default function NewServiceRequest() {
   const submit = useMutation({
     mutationFn: () => {
       const body: NewRequest = { type: type!, date: date!, notes: notes.trim() || undefined };
-      if (worker) Object.assign(body, { startTime: start!, hours, job: job.trim() });
+      if (worker) Object.assign(body, { startTime: start!, hours, workers, job: job.trim() });
       else {
         body.slot = slot!;
-        if (addressId === 'new') body.address = { label: newLabel.trim(), line: newLine.trim() };
+        if (addressId === 'unit') body.fromUnit = true;
+        else if (addressId === 'new') body.address = { label: newLabel.trim(), line: newLine.trim() };
         else body.addressId = addressId!;
       }
+      if (disposal) body.disposal = { load: load!, description: rubbish.trim() };
       if (type === 'pickup' || type === 'both') body.pickup = { boxes, bulky, description: description.trim() || undefined };
       if (needsItems) body.items = [...picked];
       if (type === 'supplies') body.supplies = { boxes: supplyBoxes, extraLabels };
@@ -162,7 +172,7 @@ export default function NewServiceRequest() {
         ) : !cat ? <Skeleton height={300} /> : step === 0 ? (
           <>
             <Text variant="h2">What do you need?</Text>
-            {cat.services.map((s) => (
+            {cat.services.filter((s) => TYPES.includes(s.type)).map((s) => (
               <ChoiceCard key={s.type} icon={SERVICE_ICON[s.type]} title={s.title}
                 sub={s.type === 'worker' ? s.sub : `${s.sub} · from ${aed(s.from)}`} on={type === s.type} onPress={() => setType(s.type)} />
             ))}
@@ -212,11 +222,21 @@ export default function NewServiceRequest() {
                 )}
               </>
             ) : null}
+            {disposal ? (
+              <>
+                <Text variant="h2">What should we take away?</Text>
+                {cat.disposal.map((l) => (
+                  <ChoiceCard key={l.id} title={l.label} sub={`${l.sub} · ${aed(l.price)}`} on={load === l.id} onPress={() => setLoad(l.id)} />
+                ))}
+                <Input label="What is it?" multiline placeholder="e.g. An old sofa, a broken fridge and 10 bags" value={rubbish} onChangeText={setRubbish} maxLength={1000} />
+                <Note text="We take it to an approved disposal site. Not for hazardous waste, paint or chemicals." />
+              </>
+            ) : null}
             {worker ? (
               <>
                 <Text variant="h2">What do you need help with?</Text>
                 <View style={{ alignSelf: 'flex-start', backgroundColor: c.acSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}>
-                  <Text variant="meta" color="ink">{aed(cat.prices.workerHourly)} per hour · minimum {cat.worker.minHours} hour</Text>
+                  <Text variant="meta" color="ink">{aed(cat.prices.workerHourly)} per hour per worker · up to {cat.worker.maxHours} hours</Text>
                 </View>
                 <Input label="Describe the job" multiline placeholder="e.g. Load 20 boxes from my car into the unit" value={job} onChangeText={setJob} maxLength={1000} />
               </>
@@ -232,6 +252,9 @@ export default function NewServiceRequest() {
               </>
             ) : (
               <>
+                {disposal && hasUnit ? (
+                  <ChoiceCard icon={Warehouse} title="Clear my unit" sub={cat.facility.line} on={addressId === 'unit'} onPress={() => setAddressId('unit')} />
+                ) : null}
                 {(addresses.data ?? []).map((a) => (
                   <ChoiceCard key={a.id} icon={MapPin} title={a.label} sub={a.line} on={addressId === a.id} onPress={() => setAddressId(a.id)} />
                 ))}
@@ -252,18 +275,30 @@ export default function NewServiceRequest() {
 
             {worker ? (
               <>
-                <Card style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <View style={{ gap: 2 }}>
-                    <Text variant="title">Number of hours</Text>
-                    <Text variant="meta">Minimum {cat.worker.minHours} hour</Text>
+                <Card style={{ gap: 14 }}>
+                  <View style={{ gap: 8 }}>
+                    <Text variant="title">How long?</Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      {durations(cat.worker).map((h) => (
+                        <View key={h} style={{ flex: 1 }}>
+                          <Chip label={h < 1 ? '30 min' : `${h} h`} on={hours === h} onPress={() => { setHours(h); setStart(null); }} />
+                        </View>
+                      ))}
+                    </View>
                   </View>
-                  <Stepper label="hours" value={hours} onChange={(h) => { setHours(h); setStart(null); }} min={cat.worker.minHours} max={cat.worker.maxHours} />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <View style={{ gap: 2, flex: 1 }}>
+                      <Text variant="title">Workers</Text>
+                      <Text variant="meta">We have {cat.worker.maxWorkers} — book both for heavy jobs</Text>
+                    </View>
+                    <Stepper label="workers" value={workers} onChange={(n) => { setWorkers(n); setStart(null); }} min={1} max={cat.worker.maxWorkers} />
+                  </View>
                 </Card>
                 {date ? <StartTimes starts={avail.data?.starts} loading={avail.isLoading} value={start} onChange={setStart} /> : null}
                 {date && start ? (
                   <Card variant="dark" style={{ gap: 6 }}>
                     <Text variant="h3" color="onDk">{dayLabel(date)} · {start} – {endTime}</Text>
-                    <Text color="onDk2">{hours} hour{hours === 1 ? '' : 's'} at {cat.facility.line}</Text>
+                    <Text color="onDk2">{workers > 1 ? `${workers} workers` : '1 worker'} · {durationLabel(hours)} at {cat.facility.line}</Text>
                     <Text variant="title" color="onDk">{aed(est?.total ?? 0)}</Text>
                   </Card>
                 ) : null}
@@ -297,7 +332,9 @@ export default function NewServiceRequest() {
               {type === 'supplies' ? <ReviewRow k="Boxes & labels" v={`${supplyBoxes} boxes${extraLabels ? `, ${extraLabels} extra labels` : ''}`} /> : null}
               {type === 'pickup' || type === 'both' ? <ReviewRow k="Collecting" v={`${boxes} boxes, ${bulky} bulky${description.trim() ? ` · ${description.trim()}` : ''}`} /> : null}
               {needsItems ? <ReviewRow k="Delivering" v={`${picked.size} item${picked.size === 1 ? '' : 's'}`} /> : null}
+              {worker ? <ReviewRow k="Workers" v={`${workers} · ${durationLabel(hours)}`} /> : null}
               {worker ? <ReviewRow k="Job" v={job.trim()} /> : null}
+              {disposal ? <ReviewRow k="Taking away" v={`${load === 'large' ? 'Full truck' : 'Small load'} · ${rubbish.trim()}`} /> : null}
               {notes.trim() ? <ReviewRow k="Notes" v={notes.trim()} /> : null}
             </Card>
             {est ? (
@@ -327,6 +364,10 @@ export default function NewServiceRequest() {
     </Screen>
   );
 }
+
+/** 0.5, 1, 1.5, 2 — every booking length from the server's rules. */
+const durations = (w: { minHours: number; maxHours: number; stepHours: number }) =>
+  Array.from({ length: Math.round((w.maxHours - w.minHours) / w.stepHours) + 1 }, (_, i) => w.minHours + i * w.stepHours);
 
 function CountRow({ title, sub, value, onChange, min = 0 }: { title: string; sub: string; value: number; onChange: (n: number) => void; min?: number }) {
   return (

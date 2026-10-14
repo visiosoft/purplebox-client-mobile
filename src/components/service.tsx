@@ -1,6 +1,6 @@
 import { Pressable, View } from 'react-native';
 import { Image } from 'expo-image';
-import { ArrowLeftRight, Check, HardHat, ImageIcon, Minus, PackagePlus, Plus, Tags, Truck, type LucideIcon } from 'lucide-react-native';
+import { ArrowLeftRight, Check, HardHat, ImageIcon, Minus, Package, PackagePlus, Plus, Tags, Trash2, Truck, type LucideIcon } from 'lucide-react-native';
 import { Text } from './ui';
 import { StatusChip } from './bits';
 import {
@@ -10,7 +10,12 @@ import {
 import { useTheme } from '@/theme/useTheme';
 import { fonts, radius } from '@/theme/tokens';
 
-export const SERVICE_ICON: Record<ServiceType, LucideIcon> = { supplies: Tags, pickup: PackagePlus, dropoff: Truck, both: ArrowLeftRight, worker: HardHat };
+const ICONS: Record<ServiceType, LucideIcon> = {
+  supplies: Tags, pickup: PackagePlus, dropoff: Truck, both: ArrowLeftRight, worker: HardHat, disposal: Trash2,
+};
+/** The server can add a service before this build knows it; that one gets a plain box instead of crashing the list. */
+export const SERVICE_ICON = new Proxy(ICONS, { get: (t, k: string) => t[k as ServiceType] ?? Package }) as Record<ServiceType, LucideIcon>;
+export const knownService = (t: string): t is ServiceType => t in ICONS;
 
 type Tone = 'ok' | 'warn' | 'err' | 'brand' | 'neutral';
 const STATUS_TONE: Record<ServiceStatus, Tone> = {
@@ -42,7 +47,7 @@ export function RequestRow({ r, onPress }: { r: ServiceRequest; onPress: () => v
     <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, opacity: pressed ? 0.7 : 1 })}>
       <IconTile icon={SERVICE_ICON[r.type]} />
       <View style={{ flex: 1, gap: 2 }}>
-        <Text variant="title" style={{ fontSize: 15 }}>{SERVICE_LABEL[r.type]}</Text>
+        <Text variant="title" style={{ fontSize: 15 }}>{SERVICE_LABEL[r.type] ?? 'Service'}</Text>
         <Code>{r.ref}</Code>
         <Text variant="meta">{whenLabel(r)}</Text>
       </View>
