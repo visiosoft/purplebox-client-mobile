@@ -19,7 +19,10 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.purplebox.client"
+      "package": "com.purplebox.client",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -63,6 +66,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "42e78a4b-8d68-47d4-9725-68246bcc1f70"
+      }
+    },
+    "owner": "xulfi"
   }
 }

@@ -8,6 +8,7 @@ import { REMINDER_COUNT, ReminderBooking, planReminders, reminderCopy } from '@/
 
 const CHANNEL = 'booking';
 const PLAN_KEY = 'pb_reminder_plan';
+const PUSH_TOKEN_KEY = 'pb_push_token';
 const idFor = (bookingId: string, n: number) => `pb-booking-${bookingId}-${n}`;
 const supported = Platform.OS !== 'web';
 
@@ -22,6 +23,10 @@ export function configureNotifications() {
   if (Platform.OS === 'android') {
     Notifications.setNotificationChannelAsync(CHANNEL, {
       name: 'Booking reminders', importance: Notifications.AndroidImportance.DEFAULT, lightColor: '#5B2BC9',
+    }).catch(() => {});
+    // What the server sends — payments, renewals, offers, inspections, service updates — arrives on this one.
+    Notifications.setNotificationChannelAsync('default', {
+      name: 'Account updates', importance: Notifications.AndroidImportance.HIGH, lightColor: '#5B2BC9',
     }).catch(() => {});
   }
 }
@@ -80,16 +85,33 @@ export async function syncBookingReminders(booking: (ReminderBooking & { quoteNo
   }
 }
 
-/** Sends this phone's push token to the server so it can also push (needs the server route and an EAS project id). */
+/**
+ * Sends this phone's push token to the server, so payment, renewal, inspection
+ * and service updates reach the customer. Asks for permission once after
+ * login; a "no" is respected and never asked again from here.
+ */
 export async function registerPushToken() {
   if (!supported || !Device.isDevice) return;
   try {
-    if (!(await ensurePermission(false))) return;
+    if (!(await ensurePermission(true))) return;
     const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
     if (!projectId) return;
     const { data } = await Notifications.getExpoPushTokenAsync({ projectId });
     await api('/customer-auth/push-token', { body: { token: data, platform: Platform.OS } });
+    await secure.set(PUSH_TOKEN_KEY, data);
   } catch {
-    // optional until the server supports it
+    // no push on this device (no Firebase setup yet, or offline) — the in-app inbox still works
+  }
+}
+
+/** On sign-out: stop pushing this person's updates to a phone they've left. */
+export async function forgetPushToken() {
+  try {
+    const token = await secure.get(PUSH_TOKEN_KEY);
+    if (token) await api('/customer-auth/push-token', { method: 'DELETE', body: { token } });
+  } catch {
+    // signing out must never fail over this
+  } finally {
+    await secure.remove(PUSH_TOKEN_KEY).catch(() => {});
   }
 }

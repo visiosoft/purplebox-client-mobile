@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Alert, Linking, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-import { Bell, ChevronRight, FileText, IdCard, MessageCircle, MoreHorizontal, Package, Pencil, Receipt } from 'lucide-react-native';
+import { Bell, ChevronRight, FileText, Gift, IdCard, MessageCircle, MoreHorizontal, Package, Pencil, Receipt } from 'lucide-react-native';
 import { Backdrop, Button, IconButton, MenuButton, Text } from '@/components/ui';
 import { MetricPills, Row, RowIcon, Segmented, StatusChip, invoiceTone } from '@/components/bits';
 import { openDocument, storageApi } from '@/api/storage';
+import { notificationsApi } from '@/api/notifications';
 import { useAuth } from '@/store/auth';
 import { usePrefs } from '@/store/prefs';
 import { useTheme } from '@/theme/useTheme';
@@ -33,6 +34,14 @@ export default function ProfileTab() {
   const contracts = useQuery({ queryKey: ['contracts'], queryFn: storageApi.contracts });
   const documents = useQuery({ queryKey: ['documents'], queryFn: storageApi.documents });
   const invoices = useQuery({ queryKey: ['invoices'], queryFn: storageApi.invoices });
+  const qc = useQueryClient();
+  const prefs = useQuery({ queryKey: ['notification-prefs'], queryFn: notificationsApi.prefs });
+  const setPromotions = useMutation({
+    mutationFn: notificationsApi.setPrefs,
+    onSuccess: (p) => qc.setQueryData(['notification-prefs'], p),
+    onError: (e: Error) => Alert.alert('Could not save', e.message),
+  });
+  const promotions = setPromotions.isPending ? !!setPromotions.variables : prefs.data?.promotions ?? true;
 
   const units = (contracts.data ?? []).filter((k) => k.status !== 'ended');
   const docs = useMemo(() => {
@@ -118,6 +127,8 @@ export default function ProfileTab() {
           <Row leading={<RowIcon icon={IdCard} />} title="ID verification" sub="Emirates ID or passport" onPress={() => router.push('/id-upload')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
           <Row leading={<RowIcon icon={Bell} />} title="Booking reminders" sub="Up to 3 nudges if a booking isn’t finished"
             right={<Switch value={reminders} onValueChange={setReminders} trackColor={{ true: c.br }} />} />
+          <Row leading={<RowIcon icon={Gift} />} title="Offers & promotions" sub="Payment, renewal and inspection updates always come through"
+            right={<Switch value={promotions} disabled={!prefs.data} onValueChange={(v) => setPromotions.mutate(v)} trackColor={{ true: c.br }} />} />
           <Row leading={<RowIcon icon={MessageCircle} />} title="Chat with us" sub="WhatsApp, 7 days a week" onPress={() => Linking.openURL(WHATSAPP)} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
         </View>
 

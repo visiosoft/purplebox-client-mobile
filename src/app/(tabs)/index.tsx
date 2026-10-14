@@ -10,6 +10,7 @@ import { Gauge, MetricPills, Page, Row, RowIcon, StatusChip, invoiceTone } from 
 import { Contract, openDocument, storageApi } from '@/api/storage';
 import { bookingApi } from '@/api/booking';
 import { isOpen, servicesApi } from '@/api/services';
+import { notificationsApi } from '@/api/notifications';
 import { RequestRow } from '@/components/service';
 import { useBilling } from '@/hooks/useBilling';
 import { useAuth } from '@/store/auth';
@@ -19,7 +20,7 @@ import { WHATSAPP } from '@/lib/contact';
 import { useTheme } from '@/theme/useTheme';
 import { fonts, radius } from '@/theme/tokens';
 
-/** "My contract ··· All documents" */
+/** "My contract Â·Â·Â· All documents" */
 function SectionHead({ title, link, onPress }: { title: string; link?: string; onPress?: () => void }) {
   const { c } = useTheme();
   return (
@@ -82,7 +83,7 @@ function ContractCard({ contract, onView, onSign }: { contract: Contract; onView
           <Text variant="meta">{contract.contractNo}</Text>
         </View>
         <Text variant="title">Self-storage agreement</Text>
-        <Text variant="meta">From {shortDate(contract.startDate)} · {contract.status === 'ended' ? 'Ended' : 'Ends'} {shortDate(contract.endDate)}</Text>
+        <Text variant="meta">From {shortDate(contract.startDate)} Â· {contract.status === 'ended' ? 'Ended' : 'Ends'} {shortDate(contract.endDate)}</Text>
         <Pressable onPress={contract.signed ? onView : onSign} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
           <FileText color={c.ink} size={16} strokeWidth={1.6} />
           <Text style={{ fontFamily: fonts.medium, fontSize: 14, color: c.ink }}>{contract.signed ? 'View contract' : 'Sign contract'}</Text>
@@ -102,6 +103,7 @@ export default function HomeTab() {
   const docs = useQuery({ queryKey: ['documents'], queryFn: storageApi.documents });
   const bill = useBilling();
   const services = useQuery({ queryKey: ['services'], queryFn: servicesApi.list });
+  const inbox = useQuery({ queryKey: ['notifications'], queryFn: notificationsApi.list });
   const items = useQuery({ queryKey: ['items'], queryFn: servicesApi.items });
   const activeRequests = (services.data ?? []).filter((r) => isOpen(r.status)).slice(0, 2);
   const storedCount = (items.data ?? []).filter((i) => i.status === 'stored').length;
@@ -111,7 +113,6 @@ export default function HomeTab() {
   const unit = contract?.units[0];
   const due = daysUntil(contract?.nextPaymentDate);
   const left = daysUntil(contract?.endDate);
-  const owing = home?.outstanding.total ?? 0;
   const progress = contract ? termProgress(contract) : 0;
   // Before move-in the term hasn't begun, so count down to it instead of showing 0%.
   const toStart = daysUntil(contract?.startDate);
@@ -141,11 +142,12 @@ export default function HomeTab() {
         <MenuButton />
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <IconButton icon={MessageCircle} label="Message us on WhatsApp" onPress={() => Linking.openURL(WHATSAPP)} />
-          <IconButton icon={Bell} label="Payments" badge={owing > 0} onPress={toPayments} />
+          <IconButton icon={Bell} label={inbox.data?.unread ? `Notifications, ${inbox.data.unread} unread` : 'Notifications'}
+            badge={!!inbox.data?.unread} onPress={() => router.push('/notifications')} />
         </View>
       </View>
       <Page loading={q.isLoading} error={q.error?.message} refreshing={q.isRefetching || bill.refreshing}
-        onRefresh={() => { bill.refresh(); pending.refetch(); services.refetch(); items.refetch(); }}>
+        onRefresh={() => { bill.refresh(); pending.refetch(); services.refetch(); items.refetch(); inbox.refetch(); }}>
         <Text variant="h1" style={{ marginBottom: 4 }}>Hi{name && !/^[+\d]/.test(name) ? `, ${name}` : ''}</Text>
 
         {pending.data ? (
@@ -155,7 +157,7 @@ export default function HomeTab() {
               <ArrowUpRight color="#262626" size={20} strokeWidth={1.6} />
             </View>
             <Text color="ink2">
-              {pending.data.state === 'ready_to_sign' ? `Unit ${pending.data.unit.unitNumber} is paid — sign your contract to activate it.`
+              {pending.data.state === 'ready_to_sign' ? `Unit ${pending.data.unit.unitNumber} is paid â€” sign your contract to activate it.`
                 : pending.data.state === 'held' ? `Unit ${pending.data.unit.unitNumber} is held for you. Complete payment to keep it.`
                 : `We're finishing up unit ${pending.data.unit.unitNumber}.`}
             </Text>
@@ -168,14 +170,14 @@ export default function HomeTab() {
           <Card style={{ gap: 18, paddingTop: 24 }}>
             <View style={{ alignItems: 'center', gap: 2 }}>
               <Text variant="h2">Unit {unit.unitNumber}</Text>
-              <Text variant="meta">{unit.sizeSqf ? `${unit.sizeSqf} sq ft · ` : ''}{contract.contractNo}</Text>
+              <Text variant="meta">{unit.sizeSqf ? `${unit.sizeSqf} sq ft Â· ` : ''}{contract.contractNo}</Text>
             </View>
             {upcoming ? (
               <Gauge value={0} label={String(toStart)}
-                caption={`day${toStart === 1 ? '' : 's'} until move-in · ${shortDate(contract.startDate)}`} />
+                caption={`day${toStart === 1 ? '' : 's'} until move-in Â· ${shortDate(contract.startDate)}`} />
             ) : (
               <Gauge value={progress} label={`${Math.round(progress * 100)}%`}
-                caption={left !== null && left > 0 ? `of your term used · ${left} days left` : 'of your term used'} />
+                caption={left !== null && left > 0 ? `of your term used Â· ${left} days left` : 'of your term used'} />
             )}
             <MetricPills items={[
               { label: 'Monthly', value: aed(monthlyRate(contract)), tone: 'accent' },
@@ -228,14 +230,14 @@ export default function HomeTab() {
             <Card style={{ gap: 4, paddingVertical: 14 }}>
               <Text variant="overline">Upcoming</Text>
               {upcomingInvoices.map((i) => (
-                <Row key={i.id} leading={<RowIcon icon={FileText} />} title={aed(i.balance)} sub={`${i.number} · Due ${shortDate(i.dueDate)}`}
+                <Row key={i.id} leading={<RowIcon icon={FileText} />} title={aed(i.balance)} sub={`${i.number} Â· Due ${shortDate(i.dueDate)}`}
                   onPress={toPayments} right={<StatusChip label={i.status.replace(/_/g, ' ')} tone={invoiceTone(i.status)} />} />
               ))}
               {!upcomingInvoices.length && contract?.nextPaymentDate ? (
-                <Row leading={<RowIcon icon={CalendarClock} />} title={aed(monthlyRate(contract))} sub={`Next payment · ${shortDate(contract.nextPaymentDate)}`}
+                <Row leading={<RowIcon icon={CalendarClock} />} title={aed(monthlyRate(contract))} sub={`Next payment Â· ${shortDate(contract.nextPaymentDate)}`}
                   right={<StatusChip label="Scheduled" />} />
               ) : null}
-              {!upcomingInvoices.length && !contract?.nextPaymentDate ? <Text color="ink2" style={{ paddingVertical: 8 }}>Nothing due — you’re all paid up.</Text> : null}
+              {!upcomingInvoices.length && !contract?.nextPaymentDate ? <Text color="ink2" style={{ paddingVertical: 8 }}>Nothing due â€” youâ€™re all paid up.</Text> : null}
               {bill.due > 0 ? <Button title={`Pay ${aed(bill.due)}`} variant="accent" icon={CreditCard} onPress={toPayments} style={{ height: 46, marginTop: 4, marginBottom: 6 }} /> : null}
 
               <View style={{ height: 1, backgroundColor: c.ln, marginVertical: 8 }} />
@@ -254,7 +256,7 @@ export default function HomeTab() {
             <Text variant="title">Your requests</Text>
             {requests.map((r) => (
               <Row key={r.id} leading={<RowIcon icon={Clock} />} title={REQUEST_LABEL[r.kind]}
-                sub={`Unit ${r.unit}${r.detail ? ` · ${r.detail}` : ''} · sent ${shortDate(new Date(r.at).toISOString())}`}
+                sub={`Unit ${r.unit}${r.detail ? ` Â· ${r.detail}` : ''} Â· sent ${shortDate(new Date(r.at).toISOString())}`}
                 right={<StatusChip label="Pending" tone="warn" />} />
             ))}
           </Card>
