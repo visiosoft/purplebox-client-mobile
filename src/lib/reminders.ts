@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { api } from '@/api/client';
+import { tr } from '@/i18n';
 import { secure } from '@/lib/secure';
 import { REMINDER_COUNT, ReminderBooking, planReminders, reminderCopy } from '@/lib/reminderPlan';
 
@@ -21,7 +22,7 @@ export function configureNotifications() {
   });
   if (Platform.OS === 'android') {
     Notifications.setNotificationChannelAsync(CHANNEL, {
-      name: 'Booking reminders', importance: Notifications.AndroidImportance.DEFAULT, lightColor: '#5B2BC9',
+      name: tr('Booking reminders'), importance: Notifications.AndroidImportance.DEFAULT, lightColor: '#5B2BC9',
     }).catch(() => {});
   }
 }

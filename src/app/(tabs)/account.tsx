@@ -4,19 +4,27 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
-import { Bell, ChevronRight, FileText, IdCard, Link2, MessageCircle, MoreHorizontal, Package, Pencil, Receipt } from 'lucide-react-native';
+import { Bell, ScanFace, CreditCard, Languages, FileText, FolderOpen, IdCard, Link2, UserCheck, Users, MessageCircle, MoreHorizontal, Package, Pencil, Receipt } from 'lucide-react-native';
 import { Backdrop, Button, IconButton, MenuButton, Text } from '@/components/ui';
-import { MetricPills, Row, RowIcon, Segmented, StatusChip, invoiceTone } from '@/components/bits';
+import { MetricPills, Row, RowIcon, Segmented, StatusChip } from '@/components/bits';
 import { openDocument, storageApi } from '@/api/storage';
+import { useBilling } from '@/hooks/useBilling';
+import { useProfile } from '@/hooks/useProfile';
+import { useBiometricInfo } from '@/hooks/useBiometricInfo';
+import { confirmIdentity } from '@/lib/biometrics';
 import { useAuth } from '@/store/auth';
 import { usePrefs } from '@/store/prefs';
 import { useTheme } from '@/theme/useTheme';
 import { fonts, radius, space } from '@/theme/tokens';
+import { dateLocale, useI18n } from '@/i18n';
+import { useDir } from '@/i18n/useDir';
 import { aed, shortDate } from '@/lib/format';
 import { WHATSAPP } from '@/lib/contact';
 
 
-type TabKey = 'saved' | 'tagged';
+type TabKey = 'paid' | 'invoices' | 'saved';
+
+const KIND_LABEL = { agreement: 'Agreement', invoice: 'Invoice', receipt: 'Receipt' } as const;
 
 const initials = (name?: string) =>
   (name && !/^[+\d\s()-]+$/.test(name) ? name : 'PB').split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('');
@@ -25,14 +33,21 @@ export default function ProfileTab() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { c } = useTheme();
+  const { t, language } = useI18n();
+  const { ChevronForward } = useDir();
   const { customer, logout } = useAuth();
-  const { theme, setTheme, reminders, setReminders } = usePrefs();
-  const [tab, setTab] = useState<TabKey>('saved');
+  const { theme, setTheme, reminders, setReminders, biometrics, setBiometrics } = usePrefs();
+  const [tab, setTab] = useState<TabKey>('paid');
   const [now] = useState(Date.now);
 
   const contracts = useQuery({ queryKey: ['contracts'], queryFn: storageApi.contracts });
   const documents = useQuery({ queryKey: ['documents'], queryFn: storageApi.documents });
-  const invoices = useQuery({ queryKey: ['invoices'], queryFn: storageApi.invoices });
+  const billing = useBilling();
+  const profile = useProfile();
+  const bio = useBiometricInfo();
+  const paidTotal = billing.totalPaid;
+  const paidInvoices = billing.paid;
+  const openInvoices = [...billing.overdue, ...billing.upcoming];
 
   const units = (contracts.data ?? []).filter((k) => k.status !== 'ended');
   const docs = useMemo(() => {
@@ -41,14 +56,14 @@ export default function ProfileTab() {
   }, [documents.data]);
   const since = (contracts.data ?? []).map((k) => new Date(k.startDate).getTime()).sort((a, b) => a - b)[0];
   const months = since ? Math.max(1, Math.round((now - since) / (28 * 86_400_000))) : 0;
-  const realName = customer?.fullName && !/^[+\d\s()-]+$/.test(customer.fullName) ? customer.fullName : 'PurpleBox member';
+  const realName = customer?.fullName && !/^[+\d\s()-]+$/.test(customer.fullName) ? customer.fullName : t('PurpleBox member');
 
-  const settings = () => Alert.alert('Settings', `Theme: ${theme}`, [
-    { text: 'Light', onPress: () => setTheme('light') },
-    { text: 'Dark', onPress: () => setTheme('dark') },
-    { text: 'Match system', onPress: () => setTheme('system') },
-    { text: 'Sign out', style: 'destructive', onPress: logout },
-    { text: 'Close', style: 'cancel' },
+  const settings = () => Alert.alert(t('Settings'), t('Theme: {theme}', { theme: t(theme) }), [
+    { text: t('Light'), onPress: () => setTheme('light') },
+    { text: t('Dark'), onPress: () => setTheme('dark') },
+    { text: t('Match system'), onPress: () => setTheme('system') },
+    { text: t('Sign out'), style: 'destructive', onPress: logout },
+    { text: t('Close'), style: 'cancel' },
   ]);
 
   return (
@@ -57,7 +72,7 @@ export default function ProfileTab() {
       <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: space.gutter, paddingBottom: 130, gap: 14 }} showsVerticalScrollIndicator={false}>
         {/* hero: warm tan card, like a portrait fading into the page */}
         <View style={{ borderRadius: radius.hero, overflow: 'hidden', padding: 16, paddingBottom: 22 }}>
-          <Svg style={StyleSheet.absoluteFill}>
+          <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
             <Defs>
               <LinearGradient id="pb-hero" x1="0" y1="0" x2="0" y2="1">
                 <Stop offset="0" stopColor="#E9D8C4" />
@@ -70,11 +85,11 @@ export default function ProfileTab() {
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <MenuButton tone="glass" />
-              <IconButton icon={Pencil} label="Edit profile" tone="glass" onPress={() => router.push('/profile-edit')} />
+              <IconButton icon={Pencil} label={t('Edit profile')} tone="glass" onPress={() => router.push('/profile-edit')} />
             </View>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <IconButton icon={MessageCircle} label="Message us on WhatsApp" tone="glass" onPress={() => Linking.openURL(WHATSAPP)} />
-              <IconButton icon={MoreHorizontal} label="Settings" tone="glass" onPress={settings} />
+              <IconButton icon={MessageCircle} label={t('Message us on WhatsApp')} tone="glass" onPress={() => Linking.openURL(WHATSAPP)} />
+              <IconButton icon={MoreHorizontal} label={t('Settings')} tone="glass" onPress={settings} />
             </View>
           </View>
 
@@ -99,52 +114,91 @@ export default function ProfileTab() {
 
           <Text style={{ color: 'rgba(255,255,255,0.9)', textAlign: 'center', marginTop: 14, lineHeight: 21 }}>
             {units.length
-              ? `Storing with PurpleBox since ${new Date(since!).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })} · Al Quoz, Dubai`
-              : 'New to PurpleBox. Ready to free up some space at home?'}
+              ? t('Storing with PurpleBox since {date} · Al Quoz, Dubai', { date: new Date(since!).toLocaleDateString(dateLocale(), { month: 'short', year: 'numeric' }) })
+              : t('New to PurpleBox. Ready to free up some space at home?')}
           </Text>
 
           <View style={{ marginTop: 18 }}>
             <MetricPills dark items={[
-              { label: 'Units', value: String(units.length), tone: 'accent' },
-              { label: 'Documents', value: String(docs.length), tone: 'dark' },
-              { label: months === 1 ? 'Month' : 'Months', value: String(months), tone: 'light' },
+              { label: t('Units'), value: String(units.length), tone: 'accent' },
+              { label: t('Documents'), value: String(docs.length), tone: 'dark' },
+              { label: months === 1 ? t('Month') : t('Months'), value: String(months), tone: 'light' },
             ]} />
           </View>
         </View>
 
-        <Button title={units.length ? 'Book another unit' : 'Book a unit'} onPress={() => router.push('/book')} />
-
-        <View style={{ backgroundColor: c.sf, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 6 }}>
-          <Row leading={<RowIcon icon={IdCard} />} title="ID verification" sub="Emirates ID or passport" onPress={() => router.push('/id-upload')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
-          <Row leading={<RowIcon icon={Link2} />} title="I already rent with PurpleBox" sub="Add an existing unit to this account" onPress={() => router.push('/link-unit')} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
-          <Row leading={<RowIcon icon={Bell} />} title="Booking reminders" sub="Up to 3 nudges if a booking isn’t finished"
-            right={<Switch value={reminders} onValueChange={setReminders} trackColor={{ true: c.br }} />} />
-          <Row leading={<RowIcon icon={MessageCircle} />} title="Chat with us" sub="WhatsApp, 7 days a week" onPress={() => Linking.openURL(WHATSAPP)} right={<ChevronRight color={c.ink3} size={18} strokeWidth={1.6} />} />
-        </View>
+        <Button title={units.length ? t('Book another unit') : t('Book a unit')} onPress={() => router.push('/book')} />
 
         <Segmented value={tab} onChange={setTab}
-          options={[{ value: 'saved', label: 'Documents' }, { value: 'tagged', label: 'Invoices' }]} />
+          options={[{ value: 'paid', label: t('Payments') }, { value: 'invoices', label: t('Invoices') }, { value: 'saved', label: t('Documents') }]} />
 
-        {tab === 'saved' ? (
+        {tab === 'paid' ? (
+          <>
+            <View style={{ backgroundColor: c.dk, borderRadius: radius.hero, padding: 20, gap: 4 }}>
+              <Text variant="meta" color="onDk2">{t('Total paid')}</Text>
+              <Text variant="h1" color="onDk">{aed(paidTotal)}</Text>
+              <Text variant="meta" color="onDk3">
+                {billing.payments.length === 1 ? t('1 payment') : t('{n} payments', { n: billing.payments.length })} · {paidInvoices.length === 1 ? t('1 invoice settled') : t('{n} invoices settled', { n: paidInvoices.length })}
+              </Text>
+            </View>
+            <View style={{ backgroundColor: c.sf, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 6 }}>
+              {billing.loading ? <Text color="ink2" style={{ paddingVertical: 14, textAlign: 'center' }}>{t('Loading…')}</Text> : null}
+              {!billing.loading && billing.payments.length === 0 ? <Text color="ink2" style={{ paddingVertical: 14, textAlign: 'center' }}>{t('No payments yet.')}</Text> : null}
+              {billing.payments.map((p) => (
+                <Row key={p.id} leading={<RowIcon icon={Receipt} />} title={aed(p.amount)}
+                  sub={`${shortDate(p.date)}${p.invoiceNumbers ? ` · ${p.invoiceNumbers}` : ''}${p.method ? ` · ${p.method}` : ''}`}
+                  onPress={p.href ? () => openDocument({ href: p.href!, title: t('Receipt') }).catch((e) => Alert.alert(t('Receipt'), e.message)) : undefined}
+                  right={<StatusChip label={t('Paid')} tone="ok" />} />
+              ))}
+            </View>
+          </>
+        ) : tab === 'invoices' ? (
+          <>
+            {([['Paid', paidInvoices], ['Open', openInvoices]] as const).map(([label, list]) => list.length ? (
+              <View key={label} style={{ backgroundColor: c.sf, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 6 }}>
+                <Text variant="overline" color="ink3" style={{ marginTop: 10 }}>{label === 'Paid' ? t('PAID · {n}', { n: list.length }) : t('OPEN · {n}', { n: list.length })}</Text>
+                {list.map((i) => (
+                  <Row key={i.id} leading={<RowIcon icon={FileText} />} title={i.number}
+                    sub={i.state === 'paid' ? t('{amount} · issued {date}', { amount: aed(i.total), date: shortDate(i.date) }) : t('{amount} · due {date}', { amount: aed(i.total), date: shortDate(i.dueDate) })}
+                    onPress={() => openDocument({ href: i.pdfHref, title: i.number }).catch((e) => Alert.alert(t('Invoice'), e.message))}
+                    right={<StatusChip label={i.state === 'paid' ? t('Paid') : i.state === 'overdue' ? t('Overdue') : t('Upcoming')} tone={i.state === 'paid' ? 'ok' : i.state === 'overdue' ? 'err' : 'warn'} />} />
+                ))}
+              </View>
+            ) : null)}
+            {!billing.loading && paidInvoices.length + openInvoices.length === 0 ? <Text color="ink2" style={{ textAlign: 'center' }}>{t('No invoices yet.')}</Text> : null}
+            {openInvoices.length ? <Button title={t('Go to Payments to pay')} variant="soft" onPress={() => router.navigate('/(tabs)/payments')} /> : null}
+          </>
+        ) : (
           <View style={{ backgroundColor: c.sf, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 6 }}>
-            {docs.length === 0 ? <Text color="ink2" style={{ paddingVertical: 14, textAlign: 'center' }}>No documents yet.</Text> : null}
+            {docs.length === 0 ? <Text color="ink2" style={{ paddingVertical: 14, textAlign: 'center' }}>{t('No documents yet.')}</Text> : null}
             {docs.map((d) => (
               <Row key={`${d.kind}-${d.id}`} leading={<RowIcon icon={d.kind === 'receipt' ? Receipt : FileText} />} title={d.title}
-                sub={`${d.kind[0].toUpperCase()}${d.kind.slice(1)} · ${shortDate(d.date)}`}
-                onPress={() => openDocument(d).catch((e) => Alert.alert('Document', e.message))}
+                sub={`${t(KIND_LABEL[d.kind])} · ${shortDate(d.date)}`}
+                onPress={() => openDocument(d).catch((e) => Alert.alert(t('Document'), e.message))}
                 right={d.amount !== undefined ? <Text variant="meta" color="ink">{aed(d.amount)}</Text> : undefined} />
             ))}
           </View>
-        ) : (
-          <View style={{ backgroundColor: c.dk, borderRadius: radius.hero, paddingHorizontal: 18, paddingVertical: 8 }}>
-            {(invoices.data ?? []).length === 0 ? <Text color="onDk2" style={{ paddingVertical: 14, textAlign: 'center' }}>No invoices yet.</Text> : null}
-            {(invoices.data ?? []).map((i) => (
-              <Row key={i.id} dark leading={<RowIcon icon={FileText} dark />} title={i.invoiceNo} sub={`${aed(i.total)} · due ${shortDate(i.dueDate)}`}
-                onPress={() => router.push('/(tabs)/payments')}
-                right={<StatusChip label={i.status} tone={invoiceTone(i.status)} />} />
-            ))}
-          </View>
         )}
+
+        <View style={{ backgroundColor: c.sf, borderRadius: radius.card, paddingHorizontal: 16, paddingVertical: 6 }}>
+          <Row leading={<RowIcon icon={UserCheck} />} title={t('Complete your profile')} sub={profile.percent !== null ? t('{percent}% done', { percent: profile.percent }) : t('Email, WhatsApp, ID and more')} onPress={() => router.push('/profile-complete')} right={<ChevronForward color={c.ink3} size={18} strokeWidth={1.6} />} />
+          <Row leading={<RowIcon icon={FolderOpen} />} title={t('My files')} sub={t('ID and documents on file')} onPress={() => router.push('/my-files')} right={<ChevronForward color={c.ink3} size={18} strokeWidth={1.6} />} />
+          {units.length ? <Row leading={<RowIcon icon={Users} />} title={t('Who can enter my unit')} sub={t('Add family, staff or a driver')} onPress={() => router.push('/access')} right={<ChevronForward color={c.ink3} size={18} strokeWidth={1.6} />} /> : null}
+          <Row leading={<RowIcon icon={CreditCard} />} title={t('Auto-pay and saved card')} sub={t('Pay invoices automatically')} onPress={() => router.push('/autopay')} right={<ChevronForward color={c.ink3} size={18} strokeWidth={1.6} />} />
+          <Row leading={<RowIcon icon={IdCard} />} title={t('ID verification')} sub={t('Emirates ID or passport')} onPress={() => router.push('/id-upload')} right={<ChevronForward color={c.ink3} size={18} strokeWidth={1.6} />} />
+          <Row leading={<RowIcon icon={Link2} />} title={t('I already rent with PurpleBox')} sub={t('Add an existing unit to this account')} onPress={() => router.push('/link-unit')} right={<ChevronForward color={c.ink3} size={18} strokeWidth={1.6} />} />
+          {bio.available ? (
+            <Row leading={<RowIcon icon={ScanFace} />} title={t('Unlock with {label}', { label: bio.label })} sub={t('Asked when you open the app, and before your ID and card')}
+              right={<Switch value={biometrics} onValueChange={async (on) => {
+                // Changing it either way needs a successful check, so a borrowed phone cannot switch the lock off (or on for another face).
+                if (await confirmIdentity(t(on ? 'Turn on {label} for PurpleBox' : 'Turn off {label} for PurpleBox', { label: bio.label }))) setBiometrics(on);
+              }} trackColor={{ true: c.br }} />} />
+          ) : null}
+          <Row leading={<RowIcon icon={Languages} />} title={t('Language')} sub={language === 'ar' ? 'العربية' : 'English'} onPress={() => router.push('/language')} right={<ChevronForward color={c.ink3} size={18} strokeWidth={1.6} />} />
+          <Row leading={<RowIcon icon={Bell} />} title={t('Booking reminders')} sub={t('Up to 3 nudges if a booking isn’t finished')}
+            right={<Switch value={reminders} onValueChange={setReminders} trackColor={{ true: c.br }} />} />
+          <Row leading={<RowIcon icon={MessageCircle} />} title={t('Chat with us')} sub={t('WhatsApp, 7 days a week')} onPress={() => Linking.openURL(WHATSAPP)} right={<ChevronForward color={c.ink3} size={18} strokeWidth={1.6} />} />
+        </View>
       </ScrollView>
     </View>
   );

@@ -34,9 +34,12 @@ export const dark: Palette = {
 export const radius = { chip: 999, input: 22, card: 28, hero: 32, tile: 16, sheet: 32 } as const;
 export const space = { gutter: 16 } as const;
 
-export const fonts = {
-  light: 'Outfit_300Light',
-  regular: 'Outfit_400Regular',
-  medium: 'Outfit_500Medium',
-  semibold: 'Outfit_600SemiBold',
+const FACES = {
+  en: { light: 'Outfit_300Light', regular: 'Outfit_400Regular', medium: 'Outfit_500Medium', semibold: 'Outfit_600SemiBold' },
+  // Outfit has no Arabic letters; Cairo covers Arabic and Latin in the same weights.
+  ar: { light: 'Cairo_300Light', regular: 'Cairo_400Regular', medium: 'Cairo_500Medium', semibold: 'Cairo_600SemiBold' },
 } as const;
+
+/** Font family names for the current language. Switched by useLanguageFonts() before the app renders. */
+export const fonts: { light: string; regular: string; medium: string; semibold: string } = { ...FACES.en };
+export const setFontLanguage = (lang: 'en' | 'ar') => { Object.assign(fonts, FACES[lang]); };

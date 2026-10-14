@@ -3,34 +3,46 @@ import { secure } from '@/lib/secure';
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
-type PrefsState = {
-  theme: ThemeMode;
-  biometrics: boolean;
-  introSeen: boolean;
-  reminders: boolean;
+export type Language = 'en' | 'ar';
+
+type Saved = { language: Language | null; theme: ThemeMode; biometrics: boolean; biometricsAsked: boolean; introSeen: boolean; profilePromptSeen: boolean; reminders: boolean };
+
+type PrefsState = Saved & {
   hydrated: boolean;
+  /** null until the customer has chosen at first launch. */
+  setLanguage: (l: Language) => Promise<void>;
   setTheme: (t: ThemeMode) => void;
   setBiometrics: (v: boolean) => void;
-  markIntroSeen: () => void;
   setReminders: (v: boolean) => void;
+  markIntroSeen: () => void;
+  /** The one-time "complete your profile" welcome has been shown (or skipped). */
+  markProfilePromptSeen: () => void;
+  /** The one-time "turn on Face ID?" question has been asked. */
+  markBiometricsAsked: () => void;
   hydrate: () => Promise<void>;
 };
 
 const KEY = 'pb_prefs';
 
-const persist = (s: Pick<PrefsState, 'theme' | 'biometrics' | 'introSeen' | 'reminders'>) =>
-  secure.set(KEY, JSON.stringify(s)).catch(() => {});
+const save = (s: Saved) =>
+  secure.set(KEY, JSON.stringify({ language: s.language, theme: s.theme, biometrics: s.biometrics, biometricsAsked: s.biometricsAsked, introSeen: s.introSeen, profilePromptSeen: s.profilePromptSeen, reminders: s.reminders })).catch(() => {});
 
 export const usePrefs = create<PrefsState>((set, get) => ({
+  language: null,
   theme: 'system',
   biometrics: false,
+  biometricsAsked: false,
   introSeen: false,
+  profilePromptSeen: false,
   reminders: true,
   hydrated: false,
-  setTheme: (theme) => { set({ theme }); persist({ theme, biometrics: get().biometrics, introSeen: get().introSeen, reminders: get().reminders }); },
-  setBiometrics: (biometrics) => { set({ biometrics }); persist({ theme: get().theme, biometrics, introSeen: get().introSeen, reminders: get().reminders }); },
-  markIntroSeen: () => { set({ introSeen: true }); persist({ theme: get().theme, biometrics: get().biometrics, introSeen: true, reminders: get().reminders }); },
-  setReminders: (reminders) => { set({ reminders }); persist({ theme: get().theme, biometrics: get().biometrics, introSeen: get().introSeen, reminders }); },
+  setLanguage: async (language) => { set({ language }); await save(get()); },
+  setTheme: (theme) => { set({ theme }); save(get()); },
+  setBiometrics: (biometrics) => { set({ biometrics }); save(get()); },
+  setReminders: (reminders) => { set({ reminders }); save(get()); },
+  markIntroSeen: () => { set({ introSeen: true }); save(get()); },
+  markProfilePromptSeen: () => { set({ profilePromptSeen: true }); save(get()); },
+  markBiometricsAsked: () => { set({ biometricsAsked: true }); save(get()); },
   hydrate: async () => {
     try {
       const raw = await secure.get(KEY);

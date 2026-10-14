@@ -1,8 +1,12 @@
-export const aed = (n: number) =>
-  `AED ${Number(n || 0).toLocaleString('en-AE', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+import { currentLang, dateLocale, numberLocale } from '@/i18n';
+
+export const aed = (n: number) => {
+  const v = Number(n || 0).toLocaleString(numberLocale(), { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  return currentLang() === 'ar' ? `${v} د.إ` : `AED ${v}`;
+};
 
 export const shortDate = (iso?: string | null) =>
-  iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+  iso ? new Date(iso).toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
 
 export const daysUntil = (iso?: string | null) =>
   iso ? Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000) : null;

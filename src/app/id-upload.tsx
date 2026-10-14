@@ -10,10 +10,12 @@ import { Page, Segmented, Steps, StatusChip } from '@/components/bits';
 import { IdType, SLOTS, Slot, identityApi, slotKey } from '@/api/identity';
 import { useTheme } from '@/theme/useTheme';
 import { radius } from '@/theme/tokens';
+import { useI18n } from '@/i18n';
 
 // Your contract needs a copy of your ID. Take a photo or pick one from the library; each photo uploads as soon as it is chosen.
 export default function IdUpload() {
   const router = useRouter();
+  const { t } = useI18n();
   const { flow } = useLocalSearchParams<{ flow?: string }>();
   const { c } = useTheme();
   const [type, setType] = useState<IdType>('emirates_id');
@@ -28,7 +30,7 @@ export default function IdUpload() {
   const pick = async (slot: Slot, source: 'camera' | 'library') => {
     try {
       const perm = source === 'camera' ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) return Alert.alert('Permission needed', `Allow ${source === 'camera' ? 'camera' : 'photo'} access in Settings to continue.`);
+      if (!perm.granted) return Alert.alert(t('Permission needed'), source === 'camera' ? t('Allow camera access in Settings to continue.') : t('Allow photo access in Settings to continue.'));
       const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.7, allowsEditing: false };
       const r = source === 'camera' ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
       if (r.canceled || !r.assets[0]) return;
@@ -38,17 +40,17 @@ export default function IdUpload() {
       setLocal((l) => ({ ...l, [key]: r.assets[0].uri }));
       status.refetch();
     } catch (e: any) {
-      Alert.alert('Could not upload', e.message);
+      Alert.alert(t('Could not upload'), e.message);
     } finally { setBusy(null); }
   };
 
   return (
     <Screen>
-      <TopBar title="Verify your ID" />
+      <TopBar title={t('Verify your ID')} />
       <Page>
         {flow === 'book' ? <Steps current={1} /> : null}
-        <Text color="ink2">We need a clear photo of your ID for your storage contract. Use good light and keep all four corners in view.</Text>
-        <Segmented value={type} onChange={setType} options={[{ value: 'emirates_id', label: 'Emirates ID' }, { value: 'passport', label: 'Passport' }]} />
+        <Text color="ink2">{t('We need a clear photo of your ID for your storage contract. Use good light and keep all four corners in view.')}</Text>
+        <Segmented value={type} onChange={setType} options={[{ value: 'emirates_id', label: t('Emirates ID') }, { value: 'passport', label: t('Passport') }]} />
 
         {slots.map((slot) => {
           const key = slotKey(slot);
@@ -56,23 +58,23 @@ export default function IdUpload() {
           return (
             <Card key={key} style={{ gap: 14 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text variant="title">{slot.label}</Text>
-                {done ? <StatusChip tone="ok" icon={Check} label="Uploaded" /> : null}
+                <Text variant="title">{t(slot.label)}</Text>
+                {done ? <StatusChip tone="ok" icon={Check} label={t('Uploaded')} /> : null}
               </View>
               {local[key] ? <Image source={local[key]} style={{ height: 150, borderRadius: radius.tile }} contentFit="cover" /> : null}
               <View style={{ flexDirection: 'row', gap: 8 }}>
-                <Button title={done ? 'Retake' : 'Take photo'} icon={Camera} style={{ flex: 1, height: 48 }} loading={busy === key} disabled={!!busy} onPress={() => pick(slot, 'camera')} />
-                <Button title="Upload" variant="soft" icon={ImageIcon} style={{ flex: 1, height: 48 }} disabled={!!busy} onPress={() => pick(slot, 'library')} />
+                <Button title={done ? t('Retake') : t('Take photo')} icon={Camera} style={{ flex: 1, height: 48 }} loading={busy === key} disabled={!!busy} onPress={() => pick(slot, 'camera')} />
+                <Button title={t('Upload')} variant="soft" icon={ImageIcon} style={{ flex: 1, height: 48 }} disabled={!!busy} onPress={() => pick(slot, 'library')} />
               </View>
             </Card>
           );
         })}
 
-        <Button title={flow === 'book' && ready ? 'Continue booking' : ready ? 'Done' : 'Add all photos to continue'} variant="accent" disabled={!ready}
+        <Button title={flow === 'book' && ready ? t('Continue booking') : ready ? t('Done') : t('Add all photos to continue')} variant="accent" disabled={!ready}
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))} />
         <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
           <ShieldCheck color={c.ink3} size={16} strokeWidth={1.6} />
-          <Text variant="meta" style={{ flex: 1 }}>Sent securely and used only for your contract.</Text>
+          <Text variant="meta" style={{ flex: 1 }}>{t('Sent securely and used only for your contract.')}</Text>
         </View>
       </Page>
     </Screen>

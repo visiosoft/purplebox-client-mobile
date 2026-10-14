@@ -7,7 +7,9 @@ import { useRouter } from 'expo-router';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { ArrowLeft, Menu, type LucideIcon } from 'lucide-react-native';
+import { Menu, type LucideIcon } from 'lucide-react-native';
+import { useI18n } from '@/i18n';
+import { useDir } from '@/i18n/useDir';
 import { useDrawer } from '@/store/drawer';
 import { useTheme } from '@/theme/useTheme';
 import { fonts, radius, space } from '@/theme/tokens';
@@ -21,6 +23,7 @@ export function Text({ style, variant = 'body', color, ...p }: React.ComponentPr
   color?: Ink;
 }) {
   const { c } = useTheme();
+  const { isRTL } = useI18n();
   const base: Record<string, TextStyle> = {
     display: { fontFamily: fonts.light, fontSize: 52, letterSpacing: -1.6, lineHeight: 58 },
     h1: { fontFamily: fonts.light, fontSize: 36, letterSpacing: -0.9, lineHeight: 42 },
@@ -32,14 +35,15 @@ export function Text({ style, variant = 'body', color, ...p }: React.ComponentPr
     overline: { fontFamily: fonts.regular, fontSize: 13, letterSpacing: 0.1 },
   };
   const fallback: Ink = variant === 'meta' || variant === 'overline' ? 'ink3' : 'ink';
-  return <RNText {...p} style={[base[variant], { color: c[color ?? fallback] }, style]} />;
+  // Letter-spacing pulls Arabic letters apart (they join), so it is dropped in Arabic.
+  return <RNText {...p} style={[base[variant], { color: c[color ?? fallback] }, style, isRTL && { letterSpacing: 0 }]} />;
 }
 
 /** The cream canvas, warming to a pale butter yellow towards the bottom. */
 export function Backdrop() {
   const { c } = useTheme();
   return (
-    <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+    <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
       <Defs>
         <LinearGradient id="pb-bg" x1="0" y1="0" x2="0" y2="1">
           <Stop offset="0" stopColor={c.bg} />
@@ -84,6 +88,7 @@ export function Button({ title, onPress, loading, disabled, variant = 'primary',
   variant?: 'primary' | 'accent' | 'soft' | 'ghost'; icon?: LucideIcon; style?: StyleProp<ViewStyle>;
 }) {
   const { c } = useTheme();
+  const { isRTL } = useI18n();
   const bg = { primary: c.br, accent: c.ac, soft: c.sf, ghost: 'transparent' }[variant];
   const fg = { primary: c.onBr, accent: c.acInk, soft: c.ink, ghost: c.ink2 }[variant];
   const off = disabled || loading;
@@ -105,7 +110,7 @@ export function Button({ title, onPress, loading, disabled, variant = 'primary',
       {loading ? <ActivityIndicator color={fg} /> : (
         <>
           {Icon ? <Icon color={fg} size={18} strokeWidth={1.7} /> : null}
-          <RNText style={{ color: fg, fontFamily: fonts.regular, fontSize: 16, letterSpacing: -0.1 }}>{title}</RNText>
+          <RNText style={{ color: fg, fontFamily: fonts.regular, fontSize: 16, letterSpacing: isRTL ? 0 : -0.1 }}>{title}</RNText>
         </>
       )}
     </APressable>
@@ -134,10 +139,12 @@ export function IconButton({ icon: Icon, onPress, label, size = 44, tone = 'ligh
 /** Back circle on the left, optional actions on the right, and the page title underneath in light display type. */
 export function TopBar({ title, onBack, right, back = true }: { title?: string; onBack?: () => void; right?: ReactNode; back?: boolean }) {
   const router = useRouter();
+  const { t } = useI18n();
+  const { Back } = useDir();
   return (
     <View style={{ gap: 18, marginBottom: 6 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44, marginTop: 8 }}>
-        {back ? <IconButton icon={ArrowLeft} label="Back" onPress={onBack ?? (() => (router.canGoBack() ? router.back() : router.replace('/(tabs)')))} /> : <View />}
+        {back ? <IconButton icon={Back} label={t('Back')} onPress={onBack ?? (() => (router.canGoBack() ? router.back() : router.replace('/(tabs)')))} /> : <View />}
         <View style={{ flexDirection: 'row', gap: 8 }}>{right}</View>
       </View>
       {title ? <Text variant="h1">{title}</Text> : null}
@@ -182,7 +189,8 @@ export function Avatar({ name, size = 46, tone = 'accent' }: { name?: string; si
 /** Opens the left-hand menu. */
 export function MenuButton({ tone = 'light' }: { tone?: 'light' | 'glass' }) {
   const setOpen = useDrawer((s) => s.setOpen);
-  return <IconButton icon={Menu} label="Open menu" tone={tone} onPress={() => setOpen(true)} />;
+  const { t } = useI18n();
+  return <IconButton icon={Menu} label={t('Open menu')} tone={tone} onPress={() => setOpen(true)} />;
 }
 
 /** Header for the main tabs: menu button on the left, optional actions on the right, large title beneath. */
