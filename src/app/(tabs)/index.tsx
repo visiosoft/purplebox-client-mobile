@@ -3,12 +3,12 @@ import { Alert, Linking, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import {
-  ArrowUpLeft, ArrowUpRight, Bell, Boxes, Calculator, CalendarCheck, CalendarClock, CheckCircle2, Clock, CreditCard, FileText, IdCard, LogOut,
-  MapPin, MessageCircle, Package, PackagePlus, Receipt, Star, Truck, Undo2,
+  ArrowUpLeft, ArrowUpRight, Bell, CalendarCheck, CalendarClock, CheckCircle2, Clock, CreditCard, FileText, IdCard, LogOut, MapPin, MessageCircle,
+  Receipt, Star,
 } from 'lucide-react-native';
 import { Button, Card, IconButton, MenuButton, Screen, Text } from '@/components/ui';
 import { Gauge, Meter, MetricPills, Page, Row, RowIcon, StatusChip } from '@/components/bits';
-import { BoxArt, Carousel, DealCard, PhotoBanner, PlanCard, SectionTitle, ServiceStrip, Tile, UnitCard, type UnitCardData } from '@/components/home';
+import { BoxArt, Carousel, DealCard, PhotoBanner, PlanCard, SectionTitle, UnitCard, type UnitCardData } from '@/components/home';
 import { RequestRow } from '@/components/service';
 import { Contract, openDocument, storageApi } from '@/api/storage';
 import { isOpen, servicesApi } from '@/api/services';
@@ -96,7 +96,6 @@ export default function HomeTab() {
   const docs = useQuery({ queryKey: ['documents'], queryFn: storageApi.documents });
   const bill = useBilling();
   const services = useQuery({ queryKey: ['services'], queryFn: servicesApi.list });
-  const items = useQuery({ queryKey: ['items'], queryFn: servicesApi.items });
   const inbox = useQuery({ queryKey: ['notifications'], queryFn: notificationsApi.list });
   const requests = useRequests((s) => s.items);
   const profile = useProfile();
@@ -125,7 +124,6 @@ export default function HomeTab() {
   const beforeMoveIn = toStart !== null && toStart > 0;
 
   const activeRequests = (services.data ?? []).filter((r) => isOpen(r.status)).slice(0, 2);
-  const storedCount = (items.data ?? []).filter((i) => i.status === 'stored').length;
   const openInvoices = [...bill.overdue, ...bill.upcoming].slice(0, 3);
   const recentPaid = [...bill.payments].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
 
@@ -175,7 +173,7 @@ export default function HomeTab() {
       </View>
 
       <Page loading={q.isLoading && !home} error={q.error?.message} refreshing={q.isRefetching || bill.refreshing}
-        onRefresh={() => { q.refetch(); sizes.refetch(); bill.refetch(); services.refetch(); items.refetch(); inbox.refetch(); }}>
+        onRefresh={() => { q.refetch(); sizes.refetch(); bill.refetch(); services.refetch(); inbox.refetch(); }}>
         {pending.data ? (
           <Card variant="accent" style={{ gap: 12 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -217,36 +215,6 @@ export default function HomeTab() {
             {nextStep ? <Text variant="meta" color="ink2">{t('Next: {title}', { title: nextStep.title })}</Text> : null}
           </Pressable>
         ) : null}
-
-        {/* the big tile and the smaller ones: booking, then the valet services */}
-        <View style={{ gap: 12 }}>
-          <View style={{ flexDirection: 'row' }}>
-            <Tile big height={118} title={contract ? t('Book another unit') : t('Book a unit')} bg={c.ac} ink={c.acInk} tint="rgba(255,255,255,0.45)"
-              art={<BoxArt size={84} />} onPress={() => reserve()} />
-          </View>
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <Tile title={t('Request pickup')} bg={c.dk} ink="#FFFFFF" tint="rgba(255,255,255,0.10)" icon={PackagePlus}
-              onPress={() => router.push({ pathname: '/service/new', params: { type: 'pickup' } })} />
-            <Tile title={t('Request drop-off')} bg={c.acSoft} ink={c.ink} tint="rgba(248,212,92,0.55)" icon={Truck}
-              onPress={() => router.push({ pathname: '/service/new', params: { type: 'dropoff' } })} />
-            <Tile title={storedCount ? t('Stored items ({n})', { n: storedCount }) : t('Stored items')} bg={c.sf2} ink={c.ink} tint="rgba(38,38,38,0.08)" icon={Boxes}
-              onPress={() => router.navigate({ pathname: '/(tabs)/storage', params: { tab: 'items' } })} />
-          </View>
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <Tile title={t('Estimator')} bg={c.sf2} ink={c.ink} tint="rgba(38,38,38,0.08)" icon={Calculator} onPress={() => router.push('/estimator')} />
-            <Tile title={t('Payments')} bg={c.acSoft} ink={c.ink} tint="rgba(248,212,92,0.55)" icon={CreditCard} onPress={toPayments} />
-            <Tile title={t('My units')} bg={c.dk} ink="#FFFFFF" tint="rgba(255,255,255,0.10)" icon={Package} onPress={() => router.navigate('/(tabs)/storage')} />
-          </View>
-        </View>
-
-        <ServiceStrip items={[
-          { icon: Truck, label: t('Services'), onPress: () => router.navigate('/(tabs)/services') },
-          { icon: LogOut, label: t('Check-out'), onPress: () => router.push('/checkout') },
-          { icon: Undo2, label: t('Refund'), onPress: () => router.push('/refund') },
-          { icon: IdCard, label: t('ID verify'), onPress: () => router.push('/id-upload') },
-          { icon: FileText, label: t('Documents'), onPress: toDocuments },
-          { icon: MessageCircle, label: t('Support'), onPress: () => Linking.openURL(WHATSAPP) },
-        ]} />
 
         <View style={{ gap: 12 }}>
           <SectionHead title={t('Active requests')} link={t('All services')} onPress={() => router.navigate('/(tabs)/services')} />
