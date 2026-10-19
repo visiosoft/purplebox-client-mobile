@@ -1,8 +1,8 @@
-import { router } from 'expo-router';
 import Constants from 'expo-constants';
 import { initPaymentSheet, initStripe, presentPaymentSheet } from '@stripe/stripe-react-native';
 import { ApiError } from '@/api/client';
 import { PayTarget, SaveCard, payApi } from '@/api/pay';
+import { openPay } from '@/lib/paySession';
 
 /** paid: the sheet confirmed it. canceled: they closed it. handed-off: Stripe's page is open in the app and finishes the flow itself. */
 export type PayResult = 'paid' | 'canceled' | 'handed-off';
@@ -16,12 +16,8 @@ const MERCHANT_ID = ((Constants.expoConfig?.extra as { stripeMerchantId?: string
  */
 async function inAppCheckoutPage(t: PayTarget, save?: SaveCard): Promise<PayResult> {
   const r = await payApi.embedded(t, save);
-  if (r.clientSecret && r.publishableKey) {
-    router.push({ pathname: '/pay', params: { clientSecret: r.clientSecret, publishableKey: r.publishableKey, kind: t.kind, id: t.id } });
-  } else {
-    const url = r.url ?? (await payApi.hostedUrl(t));
-    router.push({ pathname: '/pay', params: { url, kind: t.kind, id: t.id } });
-  }
+  if (r.clientSecret && r.publishableKey) openPay({ clientSecret: r.clientSecret, publishableKey: r.publishableKey }, t.kind, t.id);
+  else openPay({ url: r.url ?? (await payApi.hostedUrl(t)) }, t.kind, t.id);
   return 'handed-off';
 }
 

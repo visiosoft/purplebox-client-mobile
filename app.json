@@ -65,15 +65,7 @@
         }
       ],
       "expo-sharing",
-      "expo-build-properties",
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "usesCleartextTraffic": true
-          }
-        }
-      ]
+      "expo-build-properties"
     ],
     "experiments": {
       "typedRoutes": true,

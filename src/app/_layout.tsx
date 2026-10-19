@@ -3,7 +3,8 @@ import { Platform } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@/api/queryClient';
 import { useFonts } from 'expo-font';
 import { Outfit_300Light, Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold } from '@expo-google-fonts/outfit';
 import { Cairo_300Light, Cairo_400Regular, Cairo_500Medium, Cairo_600SemiBold } from '@expo-google-fonts/cairo';
@@ -24,7 +25,6 @@ import { directionMatches } from '@/i18n';
 import { applyDirection, restartApp } from '@/i18n/rtl';
 
 SplashScreen.preventAutoHideAsync();
-const queryClient = new QueryClient();
 
 function Gate() {
   const { ready, customer } = useAuth();

@@ -67,6 +67,12 @@ export const flows: Record<string, string> = {
   'If you finished paying, this will update in a moment.': 'إذا أتممت الدفع، فسيتم التحديث بعد لحظات.',
   'Back to payment': 'العودة إلى الدفع',
   'Confirming your payment…': 'جارٍ تأكيد دفعتك…',
+  'Could not check your booking': 'تعذّر التحقق من حجزك',
+  'Check your connection and try again.': 'تحقق من اتصالك وحاول مرة أخرى.',
+  'This is taking longer than usual': 'يستغرق هذا وقتاً أطول من المعتاد',
+  'Your payment may still be processing. We’ll notify you as soon as your contract is ready.': 'قد تكون دفعتك لا تزال قيد المعالجة. سنُعلمك فور جاهزية عقدك.',
+  'Check again': 'تحقق مرة أخرى',
+  'Payment processing…': 'جارٍ معالجة الدفع…',
   'Preparing your contract.': 'جارٍ إعداد عقدك.',
 
   // Estimator
@@ -174,6 +180,7 @@ export const flows: Record<string, string> = {
   'Thank you! It can take a moment to show on your invoices.': 'شكرًا لك! قد يستغرق ظهورها في فواتيرك لحظات.',
   'Close': 'إغلاق',
   'Could not start payment': 'تعذّر بدء الدفع',
+  'This payment link is no longer valid. Please start the payment again.': 'رابط الدفع هذا لم يعد صالحاً. يرجى بدء الدفع من جديد.',
   'Share or save': 'مشاركة أو حفظ',
   'Try again': 'حاول مرة أخرى',
   'Could not open this image': 'تعذّر فتح هذه الصورة',

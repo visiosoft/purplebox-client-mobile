@@ -2,7 +2,12 @@ import { create } from 'zustand';
 import { useRequests } from '@/store/requests';
 import { forgetPushToken, syncBookingReminders } from '@/lib/reminders';
 import { useLock } from '@/store/lock';
-import { api, loadToken, saveToken, setUnauthorizedHandler } from '@/api/client';
+import { ApiError, api, loadToken, saveToken, setUnauthorizedHandler } from '@/api/client';
+import { queryClient } from '@/api/queryClient';
+import { clearDownloadedDocuments } from '@/api/storage';
+
+// Nothing of the last customer's may be left for whoever signs in next on this phone.
+const forgetCustomerData = () => { queryClient.clear(); clearDownloadedDocuments(); };
 
 export type Customer = { id: string; fullName: string; phone: string; email?: string };
 
@@ -28,7 +33,7 @@ export const useAuth = create<AuthState>((set) => ({
   customer: null,
   ready: false,
   bootstrap: async () => {
-    setUnauthorizedHandler(() => { saveToken(null); set({ customer: null }); });
+    setUnauthorizedHandler(() => { saveToken(null); forgetCustomerData(); set({ customer: null }); });
     const t = await loadToken();
     if (t) {
       try {
@@ -37,7 +42,10 @@ export const useAuth = create<AuthState>((set) => ({
         const { customer, token } = await api('/customer-auth/me');
         if (token) await saveToken(token);
         set({ customer });
-      } catch { await saveToken(null); }
+      } catch (e) {
+        // Only a rejected token is dropped; no signal or a server error keeps it for the next launch.
+        if (e instanceof ApiError && (e.status === 401 || e.status === 403)) await saveToken(null);
+      }
     }
     set({ ready: true });
   },
@@ -49,5 +57,5 @@ export const useAuth = create<AuthState>((set) => ({
     set({ customer: r.customer });
     return { isNew: !!r.isNew };
   },
-  logout: async () => { await forgetPushToken(); await saveToken(null); useRequests.getState().clear(); syncBookingReminders(null, { enabled: false }); useLock.getState().unlock(); set({ customer: null }); },
+  logout: async () => { await forgetPushToken(); await saveToken(null); useRequests.getState().clear(); syncBookingReminders(null, { enabled: false }); useLock.getState().unlock(); forgetCustomerData(); set({ customer: null }); },
 }));

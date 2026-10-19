@@ -56,6 +56,13 @@ export async function openDocument(doc: Pick<DocItem, 'href' | 'title'>) {
   router.push({ pathname: '/document', params: { href: doc.href, title: doc.title } });
 }
 
+const DOCS_DIR = `${FileSystem.cacheDirectory}documents/`;
+
+/** Contracts, invoices and ID copies downloaded for viewing; removed on sign-out so the next person can't find them. */
+export async function clearDownloadedDocuments() {
+  if (Platform.OS !== 'web') await FileSystem.deleteAsync(DOCS_DIR, { idempotent: true }).catch(() => {});
+}
+
 /**
  * PDFs sit behind the Bearer token, so they are fetched with it. On phones the file goes to the cache folder
  * (so the viewer can read it); in a browser it becomes a blob: URL. Either way the result is something a viewer can show.
@@ -68,7 +75,10 @@ export async function fetchDocument(doc: Pick<DocItem, 'href' | 'title'> & { ext
     if (!res.ok) throw new Error('Could not load this document');
     return URL.createObjectURL(await res.blob());
   }
-  const target = `${FileSystem.cacheDirectory}${doc.title.replace(/[^\w.-]/g, '_')}.${doc.ext ?? 'pdf'}`;
+  // `ext` can arrive in a purplebox:// link, so only known types are used (anything else could walk out of the folder).
+  const ext = /^(pdf|jpe?g|png)$/i.test(doc.ext ?? '') ? doc.ext!.toLowerCase() : 'pdf';
+  await FileSystem.makeDirectoryAsync(DOCS_DIR, { intermediates: true }).catch(() => {});
+  const target = `${DOCS_DIR}${doc.title.replace(/[^\w-]/g, '_')}.${ext}`;
   const res = await FileSystem.downloadAsync(url, target, { headers });
   if (res.status !== 200) throw new Error('Could not load this document');
   return res.uri;

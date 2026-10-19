@@ -8,6 +8,7 @@ import { openDocument } from '@/api/storage';
 import { autopayApi } from '@/api/profile';
 import { BillInvoice, BillPayment, useBilling } from '@/hooks/useBilling';
 import { payInApp } from '@/lib/payInApp';
+import { usePaying } from '@/store/paying';
 import { aed, daysUntil, shortDate } from '@/lib/format';
 import { WHATSAPP } from '@/lib/contact';
 import { dateLocale, tr, useI18n } from '@/i18n';
@@ -45,6 +46,8 @@ export default function PaymentsTab() {
   const autopay = useQuery({ queryKey: ['autopay'], queryFn: autopayApi.get, retry: false });
   const [autoSave, setAutoSave] = useState(false);
   const offerAutopay = !!autopay.data?.available && !autopay.data.enabled;
+  const recentlyPaid = usePaying((s) => s.paid);
+  const markPaid = usePaying((s) => s.markPaid);
 
   // Stripe confirms payment to the server by webhook, which then updates Zoho Books; so look again shortly after.
   const pay = useMutation({
@@ -52,7 +55,7 @@ export default function PaymentsTab() {
       if (!inv.payId) throw Object.assign(new Error(t('Online payment is not set up for this invoice yet. Please message us and we will send you a payment link.')), { noLink: true });
       return payInApp({ kind: 'invoice', id: inv.payId, label: t('Pay {amount}', { amount: aed(inv.balance) }), saveCard: offerAutopay && autoSave, autopayConsent: offerAutopay && autoSave });
     },
-    onSuccess: (r) => { if (r === 'paid') Alert.alert(t('Payment received'), t('Thank you! It will show under History in a moment.')); },
+    onSuccess: (r, inv) => { if (r === 'paid' && inv.payId) markPaid(inv.payId); if (r === 'paid') Alert.alert(t('Payment received'), t('Thank you! It will show under History in a moment.')); },
     onSettled: () => { b.refetch(); setTimeout(b.refetch, 4000); },
     onError: (e: Error & { noLink?: boolean }) => Alert.alert(t('Payment'), e.message, e.noLink || e.message.includes('message us') ? [{ text: 'WhatsApp', onPress: () => Linking.openURL(WHATSAPP) }, { text: t('OK') }] : undefined),
   });
@@ -65,8 +68,12 @@ export default function PaymentsTab() {
     <View key={i.id}>
       <Row leading={<RowIcon icon={FileText} />} title={`${i.number} · ${aed(i.balance)}`} sub={dueText(i)} onPress={() => view(i)}
         right={<StatusChip label={i.state === 'overdue' ? t('Overdue') : i.partial ? t('Part paid') : t('Upcoming')} tone={i.state === 'overdue' ? 'err' : 'warn'} />} />
-      <Button title={t('Pay {amount}', { amount: aed(i.balance) })} variant={i.state === 'overdue' ? 'primary' : 'accent'} icon={CreditCard}
-        loading={pay.isPending && pay.variables?.id === i.id} disabled={pay.isPending} onPress={() => pay.mutate(i)} style={{ height: 46, marginBottom: 8 }} />
+      {i.payId && recentlyPaid[i.payId] ? (
+        <Button title={t('Payment processing…')} variant="soft" icon={Check} disabled onPress={() => {}} style={{ height: 46, marginBottom: 8 }} />
+      ) : (
+        <Button title={t('Pay {amount}', { amount: aed(i.balance) })} variant={i.state === 'overdue' ? 'primary' : 'accent'} icon={CreditCard}
+          loading={pay.isPending && pay.variables?.id === i.id} disabled={pay.isPending} onPress={() => pay.mutate(i)} style={{ height: 46, marginBottom: 8 }} />
+      )}
     </View>
   );
 

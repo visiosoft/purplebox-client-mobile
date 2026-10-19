@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -9,16 +9,21 @@ import { useTheme } from '@/theme/useTheme';
 import { useI18n } from '@/i18n';
 
 // Stripe tells the server a payment cleared, and the server then makes the
-// contract. That takes a moment, so after paying we poll until it is ready.
+// contract. That takes a moment, so after paying we poll until it is ready — but not forever: if the server hasn't
+// heard from Stripe after a few minutes, say so and let them leave (the push notification tells them when it lands).
+const POLL_FOR_MS = 3 * 60 * 1000;
+
 export default function BookingStatus() {
   const router = useRouter();
   const { t } = useI18n();
   const qc = useQueryClient();
   const { c } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const [slow, setSlow] = useState(false);
+  useEffect(() => { const timer = setTimeout(() => setSlow(true), POLL_FOR_MS); return () => clearTimeout(timer); }, []);
   const q = useQuery({
     queryKey: ['booking', id], queryFn: () => bookingApi.get(id),
-    refetchInterval: (query) => (['confirming', 'held'].includes(query.state.data?.state ?? '') ? 2000 : false),
+    refetchInterval: (query) => (!slow && ['confirming', 'held'].includes(query.state.data?.state ?? '') ? 2000 : false),
   });
   const state = q.data?.state;
 
@@ -56,6 +61,20 @@ export default function BookingStatus() {
           <Text color="ink2" style={{ textAlign: 'center' }}>{t('If you finished paying, this will update in a moment.')}</Text>
           <ActivityIndicator color={c.ink} />
           <Button title={t('Back to payment')} variant="soft" onPress={() => router.replace({ pathname: '/book/review', params: { id } })} style={{ alignSelf: 'stretch' }} />
+        </>
+      ) : q.isError && !q.data ? (
+        <>
+          <Text variant="h2" style={{ textAlign: 'center' }}>{t('Could not check your booking')}</Text>
+          <Text color="ink2" style={{ textAlign: 'center' }}>{t('Check your connection and try again.')}</Text>
+          <Button title={t('Try again')} onPress={() => q.refetch()} style={{ alignSelf: 'stretch' }} />
+          <Button title={t('Back to home')} variant="soft" onPress={() => router.replace('/(tabs)')} style={{ alignSelf: 'stretch' }} />
+        </>
+      ) : slow ? (
+        <>
+          <Text variant="h2" style={{ textAlign: 'center' }}>{t('This is taking longer than usual')}</Text>
+          <Text color="ink2" style={{ textAlign: 'center' }}>{t('Your payment may still be processing. We’ll notify you as soon as your contract is ready.')}</Text>
+          <Button title={t('Check again')} loading={q.isFetching} onPress={() => q.refetch()} style={{ alignSelf: 'stretch' }} />
+          <Button title={t('Back to home')} variant="soft" onPress={() => router.replace('/(tabs)')} style={{ alignSelf: 'stretch' }} />
         </>
       ) : (
         <>

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Alert, Switch, View } from 'react-native';
-import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CreditCard, ShieldCheck, Trash2 } from 'lucide-react-native';
 import { BiometricGate } from '@/components/BiometricGate';
 import { Button, Card, Screen, Text, TopBar } from '@/components/ui';
 import { Page, StatusChip } from '@/components/bits';
 import { autopayApi } from '@/api/profile';
+import { openPay } from '@/lib/paySession';
 import { useTheme } from '@/theme/useTheme';
 import { dateLocale, useI18n } from '@/i18n';
 import { fonts } from '@/theme/tokens';
@@ -15,7 +15,6 @@ const BRAND: Record<string, string> = { visa: 'Visa', mastercard: 'Mastercard', 
 
 // A saved card and the auto-pay switch. The card number is only ever typed into Stripe's own form; we keep the last four.
 function AutopayScreen() {
-  const router = useRouter();
   const { t } = useI18n();
   const qc = useQueryClient();
   const { c } = useTheme();
@@ -40,8 +39,8 @@ function AutopayScreen() {
     setBusy(true);
     try {
       const r = await autopayApi.setup(enable);
-      if (r.clientSecret && r.publishableKey) router.push({ pathname: '/pay', params: { clientSecret: r.clientSecret, publishableKey: r.publishableKey, kind: 'card', id: 'card' } });
-      else if (r.url) router.push({ pathname: '/pay', params: { url: r.url, kind: 'card', id: 'card' } });
+      if (r.clientSecret && r.publishableKey) openPay({ clientSecret: r.clientSecret, publishableKey: r.publishableKey }, 'card', 'card');
+      else if (r.url) openPay({ url: r.url }, 'card', 'card');
     } catch (e: any) { Alert.alert(t('Card'), e.message); } finally { setBusy(false); }
   };
 

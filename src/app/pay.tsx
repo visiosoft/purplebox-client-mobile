@@ -5,6 +5,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Check, X } from 'lucide-react-native';
 import { Button, IconButton, Screen, Text } from '@/components/ui';
 import { CheckoutWebView } from '@/components/CheckoutWebView';
+import { paySession } from '@/lib/paySession';
+import { usePaying } from '@/store/paying';
 import { useTheme } from '@/theme/useTheme';
 import { useI18n } from '@/i18n';
 
@@ -14,20 +16,23 @@ export default function PayScreen() {
   const router = useRouter();
   const { t } = useI18n();
   const qc = useQueryClient();
+  const markPaid = usePaying((st) => st.markPaid);
   const { c } = useTheme();
-  const { url, clientSecret, publishableKey, kind, id } = useLocalSearchParams<{ url?: string; clientSecret?: string; publishableKey?: string; kind: 'invoice' | 'booking' | 'card'; id: string }>();
+  const { s, kind, id } = useLocalSearchParams<{ s?: string; kind: 'invoice' | 'booking' | 'card'; id: string }>();
+  const [session] = useState(() => paySession(s));
+  const { url, clientSecret, publishableKey } = session ?? {};
   const [paid, setPaid] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(session ? null : t('This payment link is no longer valid. Please start the payment again.'));
 
   const refreshSoon = () => {
-    const go = () => ['billing', 'home', 'invoices', 'payments', 'documents', 'autopay'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+    const go = () => ['billing', 'home', 'invoices', 'payments', 'documents', 'autopay', 'booking', 'booking-current'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
     go(); setTimeout(go, 4000);
   };
   const leave = () => {
     if (kind === 'booking') router.replace({ pathname: '/book/status', params: { id } });
     else { refreshSoon(); router.back(); }
   };
-  const done = () => { setPaid(true); refreshSoon(); };
+  const done = () => { setPaid(true); if (kind === 'invoice') markPaid(id); refreshSoon(); };
 
   return (
     <Screen style={{ paddingBottom: 16 }}>
@@ -51,9 +56,9 @@ export default function PayScreen() {
         </View>
       ) : clientSecret && publishableKey ? (
         <CheckoutWebView clientSecret={clientSecret} publishableKey={publishableKey} onDone={done} onError={setError} />
-      ) : (
-        <CheckoutWebView url={url!} onDone={leave} />
-      )}
+      ) : url ? (
+        <CheckoutWebView url={url} onDone={leave} />
+      ) : null}
     </Screen>
   );
 }

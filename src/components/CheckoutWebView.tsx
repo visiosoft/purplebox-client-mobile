@@ -10,16 +10,19 @@ const STILL_PAYING = /(^|\.)(stripe\.com|stripe\.network|google\.com|gstatic\.co
 
 type Props = { onDone: () => void } & ({ url: string; clientSecret?: undefined; publishableKey?: undefined } | { url?: undefined; clientSecret: string; publishableKey: string });
 
+// JSON.stringify leaves "</script>" intact, which would end the script tag early; < keeps the value inside it.
+const js = (v: string) => JSON.stringify(v).replace(/</g, '\\u003c');
+
 /** Stripe's embedded card form, loaded from Stripe.js in a small page of our own. Tells the app when payment completes. */
 const embeddedHtml = (publishableKey: string, clientSecret: string) => `<!doctype html><html><head>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"><style>html,body{margin:0;background:#FDFCF7}#c{padding:4px 0 32px}</style></head>
 <body><div id="c"></div><script src="https://js.stripe.com/v3/"></script><script>
 (async function(){
   try {
-    var stripe = Stripe(${JSON.stringify(publishableKey)});
-    var checkout = await stripe.initEmbeddedCheckout({ clientSecret: ${JSON.stringify(clientSecret)}, onComplete: function(){ window.ReactNativeWebView.postMessage('complete'); } });
+    var stripe = Stripe(${js(publishableKey)});
+    var checkout = await stripe.initEmbeddedCheckout({ clientSecret: ${js(clientSecret)}, onComplete: function(){ window.ReactNativeWebView.postMessage('complete'); } });
     checkout.mount('#c');
-  } catch (e) { window.ReactNativeWebView.postMessage('error:' + (e && e.message ? e.message : ${JSON.stringify(tr('Could not start payment'))})); }
+  } catch (e) { window.ReactNativeWebView.postMessage('error:' + (e && e.message ? e.message : ${js(tr('Could not start payment'))})); }
 })();
 </script></body></html>`;
 
@@ -41,6 +44,8 @@ export function CheckoutWebView({ url, clientSecret, publishableKey, onDone, onE
         }}
         onShouldStartLoadWithRequest={(req) => {
           if (html) return true; // embedded form: it stays on the page we gave it
+          // iOS asks about frames too; a bank's 3-D Secure check loads in one from the bank's own domain mid-payment.
+          if (req.isTopFrame === false) return true;
           try {
             const { protocol, hostname } = new URL(req.url);
             if (protocol === 'about:' || protocol === 'blob:' || protocol === 'data:') return true;
