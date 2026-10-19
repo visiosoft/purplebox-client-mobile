@@ -4,10 +4,11 @@ import { ArrowLeftRight, Check, HardHat, ImageIcon, Minus, Package, PackagePlus,
 import { Text } from './ui';
 import { StatusChip } from './bits';
 import {
-  ITEM_STATUS_LABEL, STATUS_LABEL, SERVICE_LABEL, itemPhoto, whenLabel,
+  itemPhoto, itemStatusLabel, serviceLabel, statusLabel, whenLabel,
   type Item, type ItemStatus, type ServiceRequest, type ServiceStatus, type ServiceType,
 } from '@/api/services';
 import { useTheme } from '@/theme/useTheme';
+import { tr } from '@/i18n';
 import { fonts, radius } from '@/theme/tokens';
 
 const ICONS: Record<ServiceType, LucideIcon> = {
@@ -19,12 +20,12 @@ export const knownService = (t: string): t is ServiceType => t in ICONS;
 
 type Tone = 'ok' | 'warn' | 'err' | 'brand' | 'neutral';
 const STATUS_TONE: Record<ServiceStatus, Tone> = {
-  requested: 'neutral', confirmed: 'brand', scheduled: 'brand', in_progress: 'warn', completed: 'ok', cancelled: 'err',
+  awaiting_payment: 'warn', requested: 'neutral', confirmed: 'brand', scheduled: 'brand', in_progress: 'warn', completed: 'ok', cancelled: 'err',
 };
 const ITEM_TONE: Record<ItemStatus, Tone> = { expected: 'neutral', stored: 'ok', scheduled: 'brand', transit: 'warn', out: 'neutral' };
 
-export const RequestStatus = ({ status }: { status: ServiceStatus }) => <StatusChip label={STATUS_LABEL[status]} tone={STATUS_TONE[status]} />;
-export const ItemStatusChip = ({ status }: { status: ItemStatus }) => <StatusChip label={ITEM_STATUS_LABEL[status]} tone={ITEM_TONE[status]} />;
+export const RequestStatus = ({ status }: { status: ServiceStatus }) => <StatusChip label={statusLabel(status)} tone={STATUS_TONE[status]} />;
+export const ItemStatusChip = ({ status }: { status: ItemStatus }) => <StatusChip label={itemStatusLabel(status)} tone={ITEM_TONE[status]} />;
 
 /** The rounded tinted square an icon sits in, as on the Home tiles. */
 export function IconTile({ icon: Icon, size = 44 }: { icon: LucideIcon; size?: number }) {
@@ -47,7 +48,7 @@ export function RequestRow({ r, onPress }: { r: ServiceRequest; onPress: () => v
     <Pressable onPress={onPress} accessibilityRole="button" style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, opacity: pressed ? 0.7 : 1 })}>
       <IconTile icon={SERVICE_ICON[r.type]} />
       <View style={{ flex: 1, gap: 2 }}>
-        <Text variant="title" style={{ fontSize: 15 }}>{SERVICE_LABEL[r.type] ?? 'Service'}</Text>
+        <Text variant="title" style={{ fontSize: 15 }}>{knownService(r.type) ? serviceLabel(r.type) : tr('Service')}</Text>
         <Code>{r.ref}</Code>
         <Text variant="meta">{whenLabel(r)}</Text>
       </View>
@@ -60,7 +61,7 @@ export function RequestRow({ r, onPress }: { r: ServiceRequest; onPress: () => v
 export function Stepper({ value, onChange, min = 0, max = 200, label }: { value: number; onChange: (n: number) => void; min?: number; max?: number; label: string }) {
   const { c } = useTheme();
   const btn = (Icon: LucideIcon, next: number, off: boolean, primary: boolean, a11y: string) => (
-    <Pressable disabled={off} onPress={() => onChange(next)} accessibilityRole="button" accessibilityLabel={`${a11y} ${label}`} hitSlop={6}
+    <Pressable disabled={off} onPress={() => onChange(next)} accessibilityRole="button" accessibilityLabel={`${tr(a11y)} ${label}`} hitSlop={6}
       style={({ pressed }) => ({ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: primary ? c.br : c.sf2, opacity: off ? 0.35 : pressed ? 0.7 : 1 })}>
       <Icon color={primary ? c.onBr : c.ink} size={18} strokeWidth={2} />
     </Pressable>
@@ -112,7 +113,7 @@ export function ItemRow({ item, selected, onToggle, onPress, selectable = true }
         <Code>{item.category ? `${item.label} · ${categoryLabel(item.category)}` : item.label}</Code>
         <ItemStatusChip status={item.status} />
       </View>
-      {onToggle ? <Checkbox on={!!selected} onPress={onToggle} disabled={!canPick} label={`Select ${item.name}`} /> : null}
+      {onToggle ? <Checkbox on={!!selected} onPress={onToggle} disabled={!canPick} label={tr('Select {name}', { name: item.name })} /> : null}
     </Pressable>
   );
 }
@@ -121,7 +122,7 @@ const CATEGORY: Record<string, string> = {
   BOX: 'Box', SUITCASE: 'Suitcase', BAG: 'Bag', FURNITURE: 'Furniture', LOOSE_ITEM: 'Loose item', PALLET: 'Pallet',
   TOTE: 'Tote', DOCUMENT_BOX: 'Documents', OTHER: 'Other',
 };
-export const categoryLabel = (c: string) => CATEGORY[c] ?? c.charAt(0) + c.slice(1).toLowerCase().replace(/_/g, ' ');
+export const categoryLabel = (c: string) => (CATEGORY[c] ? tr(CATEGORY[c]) : c.charAt(0) + c.slice(1).toLowerCase().replace(/_/g, ' '));
 
 /** "Pickup" style big radio card used in the wizard. */
 export function ChoiceCard({ icon, title, sub, on, onPress, right }: { icon?: LucideIcon; title: string; sub?: string; on: boolean; onPress: () => void; right?: React.ReactNode }) {

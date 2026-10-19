@@ -11,9 +11,9 @@ import { useRequests, REQUEST_LABEL } from '@/store/requests';
 import { Meter, Page, Row, RowIcon, Segmented, StatusChip } from '@/components/bits';
 import { bookingApi } from '@/api/booking';
 import { Contract, DocItem, openDocument, storageApi } from '@/api/storage';
-import { SERVICE_LABEL, STATUS_LABEL, servicesApi, whenLabel } from '@/api/services';
+import { serviceLabel, servicesApi, statusLabel, whenLabel } from '@/api/services';
 import { ItemsPanel } from '@/components/ItemsPanel';
-import { SERVICE_ICON } from '@/components/service';
+import { SERVICE_ICON, knownService } from '@/components/service';
 import { tr, useI18n } from '@/i18n';
 import { useTheme } from '@/theme/useTheme';
 import { aed, daysUntil, monthlyRate, shortDate, termProgress } from '@/lib/format';
@@ -72,13 +72,14 @@ function Activity({ contracts }: { contracts: Contract[] }) {
   const { c } = useTheme();
   const services = useQuery({ queryKey: ['services'], queryFn: servicesApi.list });
   const [now] = useState(() => Date.now());
+  const name = (type: string) => (knownService(type) ? serviceLabel(type) : tr('Service'));
   const events: Event[] = [
     ...contracts.flatMap((k): Event[] => [
-      { icon: LogIn, title: 'Moved in', sub: `${k.units.map((u) => u.unitNumber).join(', ')} · ${k.contractNo}`, at: k.startDate, state: new Date(k.startDate).getTime() <= now ? 'done' : 'future' },
-      ...(k.status === 'active' ? [{ icon: CalendarClock, title: 'Scheduled check-out', sub: 'End of current agreement term', at: k.endDate, state: 'future' as const }] : []),
+      { icon: LogIn, title: tr('Moved in'), sub: `${k.units.map((u) => u.unitNumber).join(', ')} · ${k.contractNo}`, at: k.startDate, state: new Date(k.startDate).getTime() <= now ? 'done' : 'future' },
+      ...(k.status === 'active' ? [{ icon: CalendarClock, title: tr('Scheduled check-out'), sub: tr('End of current agreement term'), at: k.endDate, state: 'future' as const }] : []),
     ]),
     ...(services.data ?? []).filter((r) => r.status !== 'cancelled').map((r): Event => ({
-      icon: SERVICE_ICON[r.type], title: r.status === 'completed' ? SERVICE_LABEL[r.type] ?? 'Service' : `${SERVICE_LABEL[r.type] ?? 'Service'} · ${STATUS_LABEL[r.status].toLowerCase()}`,
+      icon: SERVICE_ICON[r.type], title: r.status === 'completed' ? name(r.type) : `${name(r.type)} · ${statusLabel(r.status).toLowerCase()}`,
       sub: `${r.ref} · ${whenLabel(r)}`, at: r.date, state: r.status === 'completed' ? 'done' : 'current',
       onPress: () => router.push({ pathname: '/service/[id]', params: { id: r.id } }),
     })),
@@ -86,7 +87,7 @@ function Activity({ contracts }: { contracts: Contract[] }) {
   if (!events.length) return null;
   return (
     <Card style={{ gap: 0 }}>
-      <Text variant="title" style={{ marginBottom: 12 }}>Activity</Text>
+      <Text variant="title" style={{ marginBottom: 12 }}>{tr('Activity')}</Text>
       {events.map((e, i) => (
         <Pressable key={`${e.title}-${i}`} onPress={e.onPress} disabled={!e.onPress} style={{ flexDirection: 'row', gap: 12 }}>
           <View style={{ alignItems: 'center' }}>
@@ -119,8 +120,12 @@ export default function StorageTab() {
   const params = useLocalSearchParams<{ tab?: string }>();
   const insets = useSafeAreaInsets();
   const [picked, setTab] = useState<'unit' | 'items' | 'documents' | null>(null);
-  // a shortcut can open straight to Items or Documents
-  const tab = picked ?? (params.tab === 'documents' || params.tab === 'items' ? params.tab : 'unit');
+  // Items are for valet customers, whose things we hold labelled. An older server sends no flag: show them as before.
+  const catalog = useQuery({ queryKey: ['service-catalog'], queryFn: servicesApi.catalog, staleTime: 10 * 60_000 });
+  const valet = catalog.data?.valet?.active ?? true;
+  // a shortcut (or the "items added" notification) can open straight to Items or Documents
+  const wanted = picked ?? (params.tab === 'documents' || params.tab === 'items' ? params.tab : 'unit');
+  const tab = wanted === 'items' && !valet ? 'unit' : wanted;
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const toggle = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const q = useQuery({ queryKey: ['contracts'], queryFn: storageApi.contracts });
@@ -132,7 +137,9 @@ export default function StorageTab() {
     <Screen>
       <TabHeader title={t('My storage')} right={<IconButton icon={Plus} label={t('Book a unit')} tone="accent" onPress={() => router.push('/book')} />} />
       <Page loading={q.isLoading} error={q.error?.message} refreshing={q.isRefetching} onRefresh={() => q.refetch()}>
-        <Segmented value={tab} onChange={setTab} options={[{ value: 'unit', label: t('Unit') }, { value: 'items', label: t('Items') }, { value: 'documents', label: t('Documents') }]} />
+        <Segmented value={tab} onChange={setTab} options={[
+          { value: 'unit', label: t('Unit') }, ...(valet ? [{ value: 'items' as const, label: t('Items') }] : []), { value: 'documents', label: t('Documents') },
+        ]} />
         {tab === 'documents' ? <Documents /> : tab === 'items' ? (
           <ItemsPanel selected={selected} onToggle={toggle} onSelectAll={(ids) => setSelected(new Set(ids))} />
         ) : (
@@ -200,8 +207,8 @@ export default function StorageTab() {
       {/* Picking items raises a footer above the tab bar to send them home. */}
       {tab === 'items' && selected.size ? (
         <View style={{ position: 'absolute', left: 16, right: 16, bottom: Math.max(insets.bottom, 12) + 88, flexDirection: 'row', gap: 10 }}>
-          <IconButton icon={X} label="Clear selection" size={52} onPress={() => setSelected(new Set())} />
-          <Button title={`Request delivery for ${selected.size} item${selected.size === 1 ? '' : 's'}`} icon={Truck} style={{ flex: 1 }}
+          <IconButton icon={X} label={t('Clear selection')} size={52} onPress={() => setSelected(new Set())} />
+          <Button title={selected.size === 1 ? t('Request delivery for 1 item') : t('Request delivery for {n} items', { n: selected.size })} icon={Truck} style={{ flex: 1 }}
             onPress={() => { router.push({ pathname: '/service/new', params: { type: 'dropoff', items: [...selected].join(',') } }); setSelected(new Set()); }} />
         </View>
       ) : null}

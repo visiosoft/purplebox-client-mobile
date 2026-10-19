@@ -18,18 +18,20 @@ export default function PayScreen() {
   const qc = useQueryClient();
   const markPaid = usePaying((st) => st.markPaid);
   const { c } = useTheme();
-  const { s, kind, id } = useLocalSearchParams<{ s?: string; kind: 'invoice' | 'booking' | 'card'; id: string }>();
+  const { s, kind, id } = useLocalSearchParams<{ s?: string; kind: 'invoice' | 'booking' | 'service' | 'card'; id: string }>();
   const [session] = useState(() => paySession(s));
   const { url, clientSecret, publishableKey } = session ?? {};
   const [paid, setPaid] = useState(false);
   const [error, setError] = useState<string | null>(session ? null : t('This payment link is no longer valid. Please start the payment again.'));
 
   const refreshSoon = () => {
-    const go = () => ['billing', 'home', 'invoices', 'payments', 'documents', 'autopay', 'booking', 'booking-current'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+    const go = () => ['billing', 'home', 'invoices', 'payments', 'documents', 'autopay', 'booking', 'booking-current', 'services', 'service', 'items'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
     go(); setTimeout(go, 4000);
   };
   const leave = () => {
     if (kind === 'booking') router.replace({ pathname: '/book/status', params: { id } });
+    // A delivery's payment is opened from its tracking screen, which is right underneath and follows the result.
+    else if (kind === 'service') { refreshSoon(); router.back(); }
     else { refreshSoon(); router.back(); }
   };
   const done = () => { setPaid(true); if (kind === 'invoice') markPaid(id); refreshSoon(); };

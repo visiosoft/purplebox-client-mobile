@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 
 /** What app/pay.tsx shows: Stripe's embedded form (clientSecret + key) or the hosted checkout page (url). */
 export type PaySession = { url?: string; clientSecret?: string; publishableKey?: string };
-type Kind = 'invoice' | 'booking' | 'card';
+type Kind = 'invoice' | 'booking' | 'service' | 'card';
 
 // The session is handed to the pay screen in memory, never through route params: the app answers purplebox:// links,
 // so anything in the params could come from a link someone else sent, and would load their page as our "Secure payment".

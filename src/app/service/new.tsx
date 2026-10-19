@@ -10,12 +10,13 @@ import { Skeleton } from '@/components/bits';
 import { Calendar } from '@/components/Calendar';
 import { ChoiceCard, Chip, Code, ItemRow, SERVICE_ICON, Stepper } from '@/components/service';
 import {
-  SERVICE_LABEL, STATUS_LABEL, dayLabel, durationLabel, estimate, servicesApi,
+  PAID_AT_BOOKING, dayLabel, workerSub, durationLabel, estimate, serviceLabel, servicesApi, statusLabel,
   type DisposalLoad, type NewRequest, type ServiceRequest, type ServiceType,
 } from '@/api/services';
 import { ApiError } from '@/api/client';
 import { aed } from '@/lib/format';
 import { useTheme } from '@/theme/useTheme';
+import { tr, useI18n } from '@/i18n';
 import { radius } from '@/theme/tokens';
 
 const STEP_NAMES = ['Service', 'Details', 'When & where', 'Review'];
@@ -26,7 +27,8 @@ const toTime = (min: number) => `${String(Math.floor(min / 60)).padStart(2, '0')
 
 /**
  * Booking a service in four steps: what, which items, when and where, review.
- * Nothing is charged here — the team confirms, and the charge follows the job.
+ * Deliveries are paid on the spot (the request opens on its tracking screen, which starts the payment); everything
+ * else is charged after the job.
  * Opening with ?type=dropoff&items=a,b (from Storage › Items) starts on step 2
  * with those items ticked.
  */
@@ -34,6 +36,7 @@ export default function NewServiceRequest() {
   const router = useRouter();
   const qc = useQueryClient();
   const { c } = useTheme();
+  const { t } = useI18n();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ type?: string; items?: string }>();
   const preset = TYPES.includes(params.type as ServiceType) ? (params.type as ServiceType) : null;
@@ -65,7 +68,7 @@ export default function NewServiceRequest() {
   const catalog = useQuery({ queryKey: ['service-catalog'], queryFn: servicesApi.catalog, staleTime: 10 * 60_000 });
   const addresses = useQuery({ queryKey: ['addresses'], queryFn: servicesApi.addresses });
   const needsItems = type === 'dropoff' || type === 'both';
-  const items = useQuery({ queryKey: ['items'], queryFn: servicesApi.items, enabled: needsItems });
+  const items = useQuery({ queryKey: ['items'], queryFn: () => servicesApi.items(), enabled: needsItems });
   const worker = type === 'worker';
   const disposal = type === 'disposal';
   const avail = useQuery({
@@ -75,6 +78,9 @@ export default function NewServiceRequest() {
   });
 
   const cat = catalog.data;
+  // Deliveries are for valet customers (we hold their labelled items). An older server sends no flag: offer as before.
+  const valet = cat?.valet?.active ?? true;
+  const payNow = !!type && PAID_AT_BOOKING.includes(type);
   const stored = (items.data ?? []).filter((i) => i.status === 'stored');
   const chosenSlot = cat?.slots.find((s) => s.id === slot);
   const est = cat && type ? estimate(cat.prices, {
@@ -88,21 +94,21 @@ export default function NewServiceRequest() {
 
   // What's missing on each step, in the customer's words. The button stays live and says it.
   const problem = (() => {
-    if (step === 0) return type ? null : 'Choose a service';
+    if (step === 0) return type ? null : t('Choose a service');
     if (step === 1) {
-      if (type === 'supplies' && supplyBoxes < 1) return 'Add at least one box';
-      if ((type === 'pickup' || type === 'both') && boxes + bulky < 1) return 'Tell us how many things to collect';
-      if (needsItems && picked.size < 1) return 'Pick the items to deliver';
-      if (worker && job.trim().length < 3) return 'Describe what you need help with';
-      if (disposal && !load) return 'Choose how big the load is';
-      if (disposal && rubbish.trim().length < 3) return 'Tell us what we’re taking away';
+      if (type === 'supplies' && supplyBoxes < 1) return t('Add at least one box');
+      if ((type === 'pickup' || type === 'both') && boxes + bulky < 1) return t('Tell us how many things to collect');
+      if (needsItems && picked.size < 1) return t('Pick the items to deliver');
+      if (worker && job.trim().length < 3) return t('Describe what you need help with');
+      if (disposal && !load) return t('Choose how big the load is');
+      if (disposal && rubbish.trim().length < 3) return t('Tell us what we’re taking away');
       return null;
     }
     if (step === 2) {
-      if (!worker && !address) return 'Choose an address';
-      if (!worker && addressId === 'new' && (newLabel.trim().length < 1 || newLine.trim().length < 5)) return 'Enter a name and the full address';
-      if (!date) return 'Pick a date';
-      if (worker ? !start : !slot) return worker ? 'Pick a start time' : 'Pick an arrival window';
+      if (!worker && !address) return t('Choose an address');
+      if (!worker && addressId === 'new' && (newLabel.trim().length < 1 || newLine.trim().length < 5)) return t('Enter a name and the full address');
+      if (!date) return t('Pick a date');
+      if (worker ? !start : !slot) return worker ? t('Pick a start time') : t('Pick an arrival window');
       return null;
     }
     return null;
@@ -126,7 +132,9 @@ export default function NewServiceRequest() {
     },
     onSuccess: ({ request }) => {
       ['services', 'items', 'addresses'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
-      setDone(request);
+      // A delivery isn't booked until it's paid: its tracking screen opens the payment and follows it from there.
+      if (request.status === 'awaiting_payment') router.replace({ pathname: '/service/[id]', params: { id: request.id, pay: '1' } });
+      else setDone(request);
     },
     onError: (e: Error) => {
       // A slot can fill while someone is on the review step; send them back to pick another.
@@ -134,7 +142,7 @@ export default function NewServiceRequest() {
         qc.invalidateQueries({ queryKey: ['availability'] });
         setSlot(null); setStart(null); setStep(2);
       }
-      Alert.alert('Could not send request', e.message);
+      Alert.alert(t('Could not send request'), e.message);
     },
   });
 
@@ -156,8 +164,8 @@ export default function NewServiceRequest() {
           <View style={{ width: `${((step + 1) / 4) * 100}%`, height: 6, borderRadius: 3, backgroundColor: c.br }} />
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text variant="meta">Step {step + 1} of 4</Text>
-          <Text variant="meta">{STEP_NAMES[step]}</Text>
+          <Text variant="meta">{t('Step {n} of 4', { n: step + 1 })}</Text>
+          <Text variant="meta">{t(STEP_NAMES[step])}</Text>
         </View>
       </View>
 
@@ -165,56 +173,56 @@ export default function NewServiceRequest() {
         contentContainerStyle={{ gap: 14, paddingTop: 8, paddingBottom: 24 }}>
         {catalog.error ? (
           <Card style={{ gap: 12 }}>
-            <Text variant="h3">Booking isn’t available right now</Text>
+            <Text variant="h3">{t('Booking isn’t available right now')}</Text>
             <Text color="ink2">{catalog.error.message}</Text>
-            <Button title="Try again" variant="soft" loading={catalog.isFetching} onPress={() => catalog.refetch()} />
+            <Button title={t('Try again')} variant="soft" loading={catalog.isFetching} onPress={() => catalog.refetch()} />
           </Card>
         ) : !cat ? <Skeleton height={300} /> : step === 0 ? (
           <>
-            <Text variant="h2">What do you need?</Text>
-            {cat.services.filter((s) => TYPES.includes(s.type)).map((s) => (
-              <ChoiceCard key={s.type} icon={SERVICE_ICON[s.type]} title={s.title}
-                sub={s.type === 'worker' ? s.sub : `${s.sub} · from ${aed(s.from)}`} on={type === s.type} onPress={() => setType(s.type)} />
+            <Text variant="h2">{t('What do you need?')}</Text>
+            {cat.services.filter((s) => TYPES.includes(s.type) && (valet || !PAID_AT_BOOKING.includes(s.type))).map((s) => (
+              <ChoiceCard key={s.type} icon={SERVICE_ICON[s.type]} title={tr(s.title)}
+                sub={s.type === 'worker' ? workerSub(cat.prices) : t('{sub} · from {price}', { sub: tr(s.sub), price: aed(s.from) })} on={type === s.type} onPress={() => setType(s.type)} />
             ))}
           </>
         ) : step === 1 ? (
           <>
             {type === 'supplies' ? (
               <>
-                <Text variant="h2">Boxes & labels</Text>
-                <Text color="ink2">We bring flat-packed boxes and a label for each. Pack, stick a label on every box or item, and book a pickup when you’re ready.</Text>
+                <Text variant="h2">{t('Boxes & labels')}</Text>
+                <Text color="ink2">{t('We bring flat-packed boxes and a label for each. Pack, stick a label on every box or item, and book a pickup when you’re ready.')}</Text>
                 <Card style={{ gap: 4, paddingVertical: 8 }}>
-                  <CountRow title="Packing boxes" sub={`${aed(cat.prices.supplyBox)} each · label included`} value={supplyBoxes} onChange={setSupplyBoxes} min={1} />
+                  <CountRow title={t('Packing boxes')} sub={t('{price} each · label included', { price: aed(cat.prices.supplyBox) })} value={supplyBoxes} onChange={setSupplyBoxes} min={1} />
                   <View style={{ height: 1, backgroundColor: c.ln }} />
-                  <CountRow title="Extra labels" sub="For furniture, bags and loose items · free" value={extraLabels} onChange={setExtraLabels} />
+                  <CountRow title={t('Extra labels')} sub={t('For furniture, bags and loose items · free')} value={extraLabels} onChange={setExtraLabels} />
                 </Card>
               </>
             ) : null}
             {type === 'pickup' || type === 'both' ? (
               <>
-                <Text variant="h2">What should we collect?</Text>
+                <Text variant="h2">{t('What should we collect?')}</Text>
                 <Card style={{ gap: 4, paddingVertical: 8 }}>
-                  <CountRow title="Boxes & cartons" sub={`${aed(cat.prices.box)} each`} value={boxes} onChange={setBoxes} />
+                  <CountRow title={t('Boxes & cartons')} sub={t('{price} each', { price: aed(cat.prices.box) })} value={boxes} onChange={setBoxes} />
                   <View style={{ height: 1, backgroundColor: c.ln }} />
-                  <CountRow title="Furniture & bulky" sub={`${aed(cat.prices.bulky)} each`} value={bulky} onChange={setBulky} />
+                  <CountRow title={t('Furniture & bulky')} sub={t('{price} each', { price: aed(cat.prices.bulky) })} value={bulky} onChange={setBulky} />
                 </Card>
-                <Input placeholder="Short description, e.g. 15 cartons of stock" value={description} onChangeText={setDescription} maxLength={300} />
-                <Note text="Every box and item needs one of our labels — order Boxes & labels first if you don’t have them." />
+                <Input placeholder={t('Short description, e.g. 15 cartons of stock')} value={description} onChangeText={setDescription} maxLength={300} />
+                <Note text={t('Every box and item needs one of our labels — order Boxes & labels first if you don’t have them.')} />
               </>
             ) : null}
             {needsItems ? (
               <>
-                <Text variant="h2" style={{ marginTop: type === 'both' ? 10 : 0 }}>Which items should we deliver?</Text>
+                <Text variant="h2" style={{ marginTop: type === 'both' ? 10 : 0 }}>{t('Which items should we deliver?')}</Text>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <Text variant="meta" color="ink">{picked.size} selected</Text>
+                  <Text variant="meta" color="ink">{t('{n} selected', { n: picked.size })}</Text>
                   {stored.length ? (
                     <Text variant="meta" color="ink" style={{ textDecorationLine: 'underline' }} onPress={() => setPicked(picked.size === stored.length ? new Set() : new Set(stored.map((i) => i.id)))}>
-                      {picked.size === stored.length ? 'Clear' : 'Select all'}
+                      {picked.size === stored.length ? t('Clear') : t('Select all')}
                     </Text>
                   ) : null}
                 </View>
                 {items.isLoading ? <Skeleton height={200} /> : stored.length === 0 ? (
-                  <Card><Text color="ink2">Nothing in storage yet. Items appear here once we’ve collected and checked them in.</Text></Card>
+                  <Card><Text color="ink2">{t('Nothing in storage yet. Items appear here once we’ve collected and checked them in.')}</Text></Card>
                 ) : (
                   <Card style={{ paddingVertical: 4 }}>
                     {stored.map((i) => <ItemRow key={i.id} item={i} selected={picked.has(i.id)} onToggle={() => toggle(i.id)} onPress={() => toggle(i.id)} />)}
@@ -224,45 +232,45 @@ export default function NewServiceRequest() {
             ) : null}
             {disposal ? (
               <>
-                <Text variant="h2">What should we take away?</Text>
+                <Text variant="h2">{t('What should we take away?')}</Text>
                 {cat.disposal.map((l) => (
-                  <ChoiceCard key={l.id} title={l.label} sub={`${l.sub} · ${aed(l.price)}`} on={load === l.id} onPress={() => setLoad(l.id)} />
+                  <ChoiceCard key={l.id} title={tr(l.label)} sub={`${tr(l.sub)} · ${aed(l.price)}`} on={load === l.id} onPress={() => setLoad(l.id)} />
                 ))}
-                <Input label="What is it?" multiline placeholder="e.g. An old sofa, a broken fridge and 10 bags" value={rubbish} onChangeText={setRubbish} maxLength={1000} />
-                <Note text="We take it to an approved disposal site. Not for hazardous waste, paint or chemicals." />
+                <Input label={t('What is it?')} multiline placeholder={t('e.g. An old sofa, a broken fridge and 10 bags')} value={rubbish} onChangeText={setRubbish} maxLength={1000} />
+                <Note text={t('We take it to an approved disposal site. Not for hazardous waste, paint or chemicals.')} />
               </>
             ) : null}
             {worker ? (
               <>
-                <Text variant="h2">What do you need help with?</Text>
+                <Text variant="h2">{t('What do you need help with?')}</Text>
                 <View style={{ alignSelf: 'flex-start', backgroundColor: c.acSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 }}>
-                  <Text variant="meta" color="ink">{aed(cat.prices.workerHourly)} per hour per worker · up to {cat.worker.maxHours} hours</Text>
+                  <Text variant="meta" color="ink">{t('{price} per hour per worker · up to {n} hours', { price: aed(cat.prices.workerHourly), n: cat.worker.maxHours })}</Text>
                 </View>
-                <Input label="Describe the job" multiline placeholder="e.g. Load 20 boxes from my car into the unit" value={job} onChangeText={setJob} maxLength={1000} />
+                <Input label={t('Describe the job')} multiline placeholder={t('e.g. Load 20 boxes from my car into the unit')} value={job} onChangeText={setJob} maxLength={1000} />
               </>
             ) : null}
           </>
         ) : step === 2 ? (
           <>
-            <Text variant="h2">{worker ? 'Date & time' : 'Address & time'}</Text>
+            <Text variant="h2">{worker ? t('Date & time') : t('Address & time')}</Text>
             {worker ? (
               <>
                 <ChoiceCard icon={MapPin} title={cat.facility.label} sub={cat.facility.line} on onPress={() => {}} />
-                <Note text="Workers help at our facility only — loading, unloading and organising your unit." />
+                <Note text={t('Workers help at our facility only — loading, unloading and organising your unit.')} />
               </>
             ) : (
               <>
                 {disposal && hasUnit ? (
-                  <ChoiceCard icon={Warehouse} title="Clear my unit" sub={cat.facility.line} on={addressId === 'unit'} onPress={() => setAddressId('unit')} />
+                  <ChoiceCard icon={Warehouse} title={t('Clear my unit')} sub={cat.facility.line} on={addressId === 'unit'} onPress={() => setAddressId('unit')} />
                 ) : null}
                 {(addresses.data ?? []).map((a) => (
                   <ChoiceCard key={a.id} icon={MapPin} title={a.label} sub={a.line} on={addressId === a.id} onPress={() => setAddressId(a.id)} />
                 ))}
-                <ChoiceCard icon={Plus} title="Add a new address" on={addressId === 'new'} onPress={() => setAddressId('new')} />
+                <ChoiceCard icon={Plus} title={t('Add a new address')} on={addressId === 'new'} onPress={() => setAddressId('new')} />
                 {addressId === 'new' ? (
                   <View style={{ gap: 10 }}>
-                    <Input label="Name" placeholder="Home, Office…" value={newLabel} onChangeText={setNewLabel} maxLength={40} />
-                    <Input label="Address" icon={MapPin} placeholder="Building, flat, street, area" autoComplete="street-address" value={newLine} onChangeText={setNewLine} maxLength={300} />
+                    <Input label={t('Name')} placeholder={t('Home, Office…')} value={newLabel} onChangeText={setNewLabel} maxLength={40} />
+                    <Input label={t('Address')} icon={MapPin} placeholder={t('Building, flat, street, area')} autoComplete="street-address" value={newLine} onChangeText={setNewLine} maxLength={300} />
                   </View>
                 ) : null}
               </>
@@ -277,40 +285,40 @@ export default function NewServiceRequest() {
               <>
                 <Card style={{ gap: 14 }}>
                   <View style={{ gap: 8 }}>
-                    <Text variant="title">How long?</Text>
+                    <Text variant="title">{t('How long?')}</Text>
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                       {durations(cat.worker).map((h) => (
                         <View key={h} style={{ flex: 1 }}>
-                          <Chip label={h < 1 ? '30 min' : `${h} h`} on={hours === h} onPress={() => { setHours(h); setStart(null); }} />
+                          <Chip label={h < 1 ? t('{n} min', { n: 30 }) : t('{h} h', { h })} on={hours === h} onPress={() => { setHours(h); setStart(null); }} />
                         </View>
                       ))}
                     </View>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                     <View style={{ gap: 2, flex: 1 }}>
-                      <Text variant="title">Workers</Text>
-                      <Text variant="meta">We have {cat.worker.maxWorkers} — book both for heavy jobs</Text>
+                      <Text variant="title">{t('Workers')}</Text>
+                      <Text variant="meta">{t('We have {n} — book both for heavy jobs', { n: cat.worker.maxWorkers })}</Text>
                     </View>
-                    <Stepper label="workers" value={workers} onChange={(n) => { setWorkers(n); setStart(null); }} min={1} max={cat.worker.maxWorkers} />
+                    <Stepper label={t('workers')} value={workers} onChange={(n) => { setWorkers(n); setStart(null); }} min={1} max={cat.worker.maxWorkers} />
                   </View>
                 </Card>
                 {date ? <StartTimes starts={avail.data?.starts} loading={avail.isLoading} value={start} onChange={setStart} /> : null}
                 {date && start ? (
                   <Card variant="dark" style={{ gap: 6 }}>
                     <Text variant="h3" color="onDk">{dayLabel(date)} · {start} – {endTime}</Text>
-                    <Text color="onDk2">{workers > 1 ? `${workers} workers` : '1 worker'} · {durationLabel(hours)} at {cat.facility.line}</Text>
+                    <Text color="onDk2">{t('{workers} · {duration} at {place}', { workers: workers > 1 ? t('{n} workers', { n: workers }) : t('1 worker'), duration: durationLabel(hours), place: cat.facility.line })}</Text>
                     <Text variant="title" color="onDk">{aed(est?.total ?? 0)}</Text>
                   </Card>
                 ) : null}
               </>
             ) : date ? (
               <View style={{ gap: 10 }}>
-                <Text variant="title">Arrival window</Text>
+                <Text variant="title">{t('Arrival window')}</Text>
                 {avail.isLoading ? <Skeleton height={100} /> : (
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                     {(avail.data?.slots ?? cat.slots).map((s) => (
                       <View key={s.id} style={{ width: '48%' }}>
-                        <Chip label={s.full ? `${s.label} · Full` : s.evening ? `${s.label} · +${cat.prices.eveningSlot}` : s.label}
+                        <Chip label={s.full ? `${s.label} · ${t('Full')}` : s.evening ? `${s.label} · +${cat.prices.eveningSlot}` : s.label}
                           on={slot === s.id} disabled={!!s.full} strike={!!s.full} onPress={() => setSlot(s.id)} />
                       </View>
                     ))}
@@ -319,35 +327,37 @@ export default function NewServiceRequest() {
               </View>
             ) : null}
 
-            <Input label={worker ? 'Notes for our team' : 'Instructions for the driver'} multiline
-              placeholder={worker ? 'Anything we should know' : 'Parking, building access, which floor…'} value={notes} onChangeText={setNotes} maxLength={1000} />
+            <Input label={worker ? t('Notes for our team') : t('Instructions for the driver')} multiline
+              placeholder={worker ? t('Anything we should know') : t('Parking, building access, which floor…')} value={notes} onChangeText={setNotes} maxLength={1000} />
           </>
         ) : (
           <>
-            <Text variant="h2">Review</Text>
+            <Text variant="h2">{t('Review')}</Text>
             <Card style={{ gap: 12 }}>
-              <ReviewRow k="Service" v={SERVICE_LABEL[type!]} />
-              <ReviewRow k="When" v={worker ? `${dayLabel(date!)} · ${start} – ${endTime}` : `${dayLabel(date!)} · ${chosenSlot?.label ?? ''}`} />
-              <ReviewRow k={worker ? 'Where' : 'Address'} v={address ? `${address.label} · ${address.line}` : '—'} />
-              {type === 'supplies' ? <ReviewRow k="Boxes & labels" v={`${supplyBoxes} boxes${extraLabels ? `, ${extraLabels} extra labels` : ''}`} /> : null}
-              {type === 'pickup' || type === 'both' ? <ReviewRow k="Collecting" v={`${boxes} boxes, ${bulky} bulky${description.trim() ? ` · ${description.trim()}` : ''}`} /> : null}
-              {needsItems ? <ReviewRow k="Delivering" v={`${picked.size} item${picked.size === 1 ? '' : 's'}`} /> : null}
-              {worker ? <ReviewRow k="Workers" v={`${workers} · ${durationLabel(hours)}`} /> : null}
-              {worker ? <ReviewRow k="Job" v={job.trim()} /> : null}
-              {disposal ? <ReviewRow k="Taking away" v={`${load === 'large' ? 'Full truck' : 'Small load'} · ${rubbish.trim()}`} /> : null}
-              {notes.trim() ? <ReviewRow k="Notes" v={notes.trim()} /> : null}
+              <ReviewRow k={t('Service')} v={serviceLabel(type!)} />
+              <ReviewRow k={t('When')} v={worker ? `${dayLabel(date!)} · ${start} – ${endTime}` : `${dayLabel(date!)} · ${chosenSlot?.label ?? ''}`} />
+              <ReviewRow k={worker ? t('Where') : t('Address')} v={address ? `${address.label} · ${address.line}` : '—'} />
+              {type === 'supplies' ? <ReviewRow k={t('Boxes & labels')} v={extraLabels ? t('{boxes} boxes, {labels} extra labels', { boxes: supplyBoxes, labels: extraLabels }) : t('{boxes} boxes', { boxes: supplyBoxes })} /> : null}
+              {type === 'pickup' || type === 'both' ? <ReviewRow k={t('Collecting')} v={`${t('{boxes} boxes, {bulky} bulky', { boxes, bulky })}${description.trim() ? ` · ${description.trim()}` : ''}`} /> : null}
+              {needsItems ? <ReviewRow k={t('Delivering')} v={picked.size === 1 ? t('1 item') : t('{n} items', { n: picked.size })} /> : null}
+              {worker ? <ReviewRow k={t('Workers')} v={`${workers} · ${durationLabel(hours)}`} /> : null}
+              {worker ? <ReviewRow k={t('Job')} v={job.trim()} /> : null}
+              {disposal ? <ReviewRow k={t('Taking away')} v={`${load === 'large' ? t('Full truck') : t('Small load')} · ${rubbish.trim()}`} /> : null}
+              {notes.trim() ? <ReviewRow k={t('Notes')} v={notes.trim()} /> : null}
             </Card>
             {est ? (
               <Card style={{ gap: 10 }}>
                 {est.lines.map((l) => <ReviewRow key={l.label} k={l.label} v={aed(l.amount)} />)}
                 <View style={{ height: 1, backgroundColor: c.ln }} />
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text variant="title">Estimated total</Text>
+                  <Text variant="title">{payNow ? t('Total to pay') : t('Estimated total')}</Text>
                   <Text variant="title">{aed(est.total)}</Text>
                 </View>
               </Card>
             ) : null}
-            <Note text="Nothing is charged now. We confirm the booking, and charge after the job is done." />
+            <Note text={payNow
+              ? t('You pay now to book this delivery; your time slot is held while you pay. Cancel before we set off and you get a full refund.')
+              : t('Nothing is charged now. We confirm the booking, and charge after the job is done.')} />
           </>
         )}
       </KeyboardAwareScrollView>
@@ -355,10 +365,10 @@ export default function NewServiceRequest() {
       {/* Sticky footer: running estimate and the next step. */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingTop: 12, paddingBottom: Math.max(insets.bottom, 12), borderTopWidth: 1, borderTopColor: c.ln, marginHorizontal: -16, paddingHorizontal: 16, backgroundColor: c.bg }}>
         <View style={{ flex: 1 }}>
-          <Text variant="meta">{step === 3 ? 'Estimated total' : 'Estimate'}</Text>
+          <Text variant="meta">{step === 3 ? (payNow ? t('Total to pay') : t('Estimated total')) : t('Estimate')}</Text>
           <Text variant="h3">{est && type ? aed(est.total) : '—'}</Text>
         </View>
-        <Button title={step === 3 ? 'Submit request' : 'Continue'} loading={submit.isPending} onPress={next}
+        <Button title={step === 3 ? (payNow ? t('Book & pay') : t('Submit request')) : t('Continue')} loading={submit.isPending} onPress={next}
           style={{ flex: 1.3, opacity: problem ? 0.45 : 1 }} />
       </View>
     </Screen>
@@ -406,13 +416,13 @@ function StartTimes({ starts, loading, value, onChange }: {
 }) {
   if (loading || !starts) return <Skeleton height={140} />;
   const groups: [string, typeof starts][] = [
-    ['Morning', starts.filter((s) => toMin(s.time) < 12 * 60)],
-    ['Afternoon', starts.filter((s) => toMin(s.time) >= 12 * 60 && toMin(s.time) < 16 * 60)],
-    ['Evening', starts.filter((s) => toMin(s.time) >= 16 * 60)],
+    [tr('Morning'), starts.filter((s) => toMin(s.time) < 12 * 60)],
+    [tr('Afternoon'), starts.filter((s) => toMin(s.time) >= 12 * 60 && toMin(s.time) < 16 * 60)],
+    [tr('Evening'), starts.filter((s) => toMin(s.time) >= 16 * 60)],
   ];
   return (
     <View style={{ gap: 12 }}>
-      <Text variant="title">Start time</Text>
+      <Text variant="title">{tr('Start time')}</Text>
       {groups.map(([name, list]) => list.length ? (
         <View key={name} style={{ gap: 8 }}>
           <Text variant="overline" color="ink2">{name}</Text>
@@ -425,7 +435,7 @@ function StartTimes({ starts, loading, value, onChange }: {
           </View>
         </View>
       ) : null)}
-      {starts.every((s) => !s.available) ? <Text color="ink2">No start time fits on this day — try fewer hours or another date.</Text> : null}
+      {starts.every((s) => !s.available) ? <Text color="ink2">{tr('No start time fits on this day — try fewer hours or another date.')}</Text> : null}
     </View>
   );
 }
@@ -438,20 +448,20 @@ function Success({ r, onTrack, onHome }: { r: ServiceRequest; onTrack: () => voi
         <View style={{ width: 92, height: 92, borderRadius: 46, backgroundColor: c.okBg, alignItems: 'center', justifyContent: 'center' }}>
           <CircleCheck color={c.ok} size={52} strokeWidth={1.6} />
         </View>
-        <Text variant="h1" style={{ textAlign: 'center' }}>Request received</Text>
-        <Text color="ink2" style={{ textAlign: 'center' }}>We’ll confirm the time shortly. You can follow it in Services.</Text>
+        <Text variant="h1" style={{ textAlign: 'center' }}>{tr('Request received')}</Text>
+        <Text color="ink2" style={{ textAlign: 'center' }}>{tr('We’ll confirm the time shortly. You can follow it in Services.')}</Text>
       </View>
       <Card style={{ gap: 12 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text variant="meta">Reference</Text>
+          <Text variant="meta">{tr('Reference')}</Text>
           <Code>{r.ref}</Code>
         </View>
-        <ReviewRow k="Status" v={STATUS_LABEL[r.status]} />
-        <ReviewRow k="When" v={`${dayLabel(r.date)} · ${r.startTime ? `${r.startTime} – ${r.endTime}` : r.slotLabel ?? ''}`} />
-        <ReviewRow k="Estimate" v={aed(r.estimate.total)} />
+        <ReviewRow k={tr('Status')} v={statusLabel(r.status)} />
+        <ReviewRow k={tr('When')} v={`${dayLabel(r.date)} · ${r.startTime ? `${r.startTime} – ${r.endTime}` : r.slotLabel ?? ''}`} />
+        <ReviewRow k={tr('Estimate')} v={aed(r.estimate.total)} />
       </Card>
-      <Button title="Track request" onPress={onTrack} />
-      <Button title="Back to home" variant="soft" onPress={onHome} />
+      <Button title={tr('Track request')} onPress={onTrack} />
+      <Button title={tr('Back to home')} variant="soft" onPress={onHome} />
     </Screen>
   );
 }

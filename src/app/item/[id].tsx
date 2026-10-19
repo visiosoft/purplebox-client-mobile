@@ -1,4 +1,5 @@
-import { View } from 'react-native';
+import { useState } from 'react';
+import { ScrollView, View, useWindowDimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
@@ -6,16 +7,19 @@ import { ImageIcon, Info, Truck } from 'lucide-react-native';
 import { Button, Card, Screen, Text, TopBar } from '@/components/ui';
 import { Page } from '@/components/bits';
 import { Code, ItemStatusChip, categoryLabel } from '@/components/service';
-import { ITEM_STATUS_LABEL, itemPhoto, servicesApi } from '@/api/services';
+import { itemPhoto, servicesApi } from '@/api/services';
 import { shortDate } from '@/lib/format';
+import { tr, useI18n } from '@/i18n';
 import { useTheme } from '@/theme/useTheme';
 import { radius } from '@/theme/tokens';
 
 const CONDITION: Record<string, string> = { GOOD: 'Good', WORN: 'Worn', DAMAGED: 'Damaged' };
+const PHOTO_H = 260;
 
 export default function ItemDetail() {
   const router = useRouter();
   const { c } = useTheme();
+  const { t } = useI18n();
   const { id } = useLocalSearchParams<{ id: string }>();
   const q = useQuery({ queryKey: ['item', id], queryFn: () => servicesApi.item(id) });
   const it = q.data;
@@ -28,28 +32,24 @@ export default function ItemDetail() {
       <Page loading={q.isLoading} error={q.error?.message} refreshing={q.isRefetching} onRefresh={() => q.refetch()}>
         {it ? (
           <>
-            <View style={{ height: 240, borderRadius: radius.card, overflow: 'hidden', backgroundColor: c.sf2, alignItems: 'center', justifyContent: 'center' }}>
-              {it.hasPhoto
-                ? <Image source={itemPhoto(it.id)} style={{ width: '100%', height: 240 }} contentFit="cover" transition={200} />
-                : <ImageIcon color={c.ink3} size={48} strokeWidth={1.2} />}
-            </View>
+            <Photos id={it.id} hasPhoto={it.hasPhoto} />
             <View style={{ gap: 8 }}>
               <ItemStatusChip status={it.status} />
               <Text variant="h2">{it.name}</Text>
               {it.contents ? <Text color="ink2">{it.contents}</Text> : null}
             </View>
             <Card style={{ gap: 12 }}>
-              <Spec k="Label" v={<Code>{it.label}</Code>} />
-              <Spec k="Type" v={categoryLabel(it.category)} />
-              {dims ? <Spec k="Dimensions" v={dims} /> : null}
-              {it.weight ? <Spec k="Weight" v={`${it.weight} kg`} /> : null}
-              {it.condition ? <Spec k="Condition" v={CONDITION[it.condition] ?? it.condition} /> : null}
-              <Spec k="Stored since" v={it.storedAt ? shortDate(it.storedAt) : '—'} />
+              <Spec k={t('Label')} v={<Code>{it.label}</Code>} />
+              <Spec k={t('Type')} v={categoryLabel(it.category)} />
+              {dims ? <Spec k={t('Dimensions')} v={dims} /> : null}
+              {it.weight ? <Spec k={t('Weight')} v={t('{n} kg', { n: it.weight })} /> : null}
+              {it.condition ? <Spec k={t('Condition')} v={CONDITION[it.condition] ? t(CONDITION[it.condition]) : it.condition} /> : null}
+              <Spec k={t('Stored since')} v={it.storedAt ? shortDate(it.storedAt) : '—'} />
             </Card>
 
             {it.history.length ? (
               <Card style={{ gap: 0 }}>
-                <Text variant="title" style={{ marginBottom: 10 }}>History</Text>
+                <Text variant="title" style={{ marginBottom: 10 }}>{t('History')}</Text>
                 {it.history.map((h, i) => (
                   <View key={i} style={{ flexDirection: 'row', gap: 12 }}>
                     <View style={{ alignItems: 'center', width: 14 }}>
@@ -66,20 +66,55 @@ export default function ItemDetail() {
             ) : null}
 
             {it.status === 'stored' ? (
-              <Button title="Request delivery" icon={Truck} onPress={() => router.push({ pathname: '/service/new', params: { type: 'dropoff', items: it.id } })} />
+              <Button title={t('Request delivery')} icon={Truck} onPress={() => router.push({ pathname: '/service/new', params: { type: 'dropoff', items: it.id } })} />
             ) : (
               <View style={{ flexDirection: 'row', gap: 10, backgroundColor: c.sf2, borderRadius: radius.tile, padding: 12 }}>
                 <Info color={c.ink2} size={18} strokeWidth={1.6} />
-                <Text variant="meta" color="ink2" style={{ flex: 1 }}>
-                  {it.status === 'expected' ? 'This label hasn’t been checked in yet. It appears as in storage once we collect it.'
-                    : `${ITEM_STATUS_LABEL[it.status]} — it can be delivered again once it’s back in storage.`}
-                </Text>
+                <Text variant="meta" color="ink2" style={{ flex: 1 }}>{note(it.status)}</Text>
               </View>
             )}
           </>
         ) : null}
       </Page>
     </Screen>
+  );
+}
+
+const note = (s: string) => {
+  if (s === 'expected') return tr('This label hasn’t been checked in yet. It appears as in storage once we collect it.');
+  if (s === 'out') return tr('This item was delivered to you and has left our storage.');
+  return tr('This item is already booked for delivery.');
+};
+
+/** Every photo staff took at intake, swiped through. Falls back to the newest one on a server without the photo list. */
+function Photos({ id, hasPhoto }: { id: string; hasPhoto: boolean }) {
+  const { c } = useTheme();
+  const { width } = useWindowDimensions();
+  const w = width - 32;
+  const list = useQuery({ queryKey: ['item-photos', id], queryFn: () => servicesApi.itemPhotos(id), enabled: hasPhoto, retry: false });
+  const [page, setPage] = useState(0);
+  const photos = list.data?.length ? list.data : null;
+
+  const frame = { height: PHOTO_H, borderRadius: radius.card, overflow: 'hidden' as const, backgroundColor: c.sf2, alignItems: 'center' as const, justifyContent: 'center' as const };
+  if (!hasPhoto) return <View style={frame}><ImageIcon color={c.ink3} size={48} strokeWidth={1.2} /></View>;
+  if (!photos || photos.length === 1) {
+    return <View style={frame}><Image source={itemPhoto(id, photos?.[0].id)} style={{ width: '100%', height: PHOTO_H }} contentFit="cover" transition={200} /></View>;
+  }
+  return (
+    <View style={{ gap: 8 }}>
+      <View style={frame}>
+        <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false}
+          onMomentumScrollEnd={(e) => setPage(Math.round(e.nativeEvent.contentOffset.x / w))}>
+          {photos.map((p) => (
+            <Image key={p.id} source={itemPhoto(id, p.id)} style={{ width: w, height: PHOTO_H }} contentFit="cover" transition={200}
+              accessibilityLabel={tr('Photo from {date}', { date: shortDate(p.at) })} />
+          ))}
+        </ScrollView>
+      </View>
+      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
+        {photos.map((p, i) => <View key={p.id} style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: i === page ? c.ink : c.ln2 }} />)}
+      </View>
+    </View>
   );
 }
 
