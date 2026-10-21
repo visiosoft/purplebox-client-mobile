@@ -229,4 +229,5 @@ export const valet: Record<string, string> = {
   'Charged': 'المبلغ المحصّل',
   'Items ({n})': 'الأغراض ({n})',
   'Contact support': 'تواصل مع الدعم',
+  'Paid — thank you.': 'تم الدفع — شكرًا لك.',
 };

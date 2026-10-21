@@ -43,6 +43,8 @@ export type ItemDetail = Item & { history: { at: string; text: string }[] };
 
 export type Estimate = { lines: { label: string; amount: number }[]; total: number };
 /** Deliveries are paid when booked; the request waits in awaiting_payment until Stripe confirms it to the server. */
+/** Jobs charged after they're done (pickup, boxes, worker, dump truck) get an invoice when staff complete them. */
+export type RequestInvoice = { id: string; invoiceNo: string; total: number; balanceDue: number; status: string; payId?: string | null };
 export type RequestPayment = {
   state: 'pending' | 'paid' | 'refunded' | 'expired'; amount: number; cardFee: number; totalCharged?: number | null;
   expiresAt?: string | null; paidAt?: string | null;
@@ -56,7 +58,7 @@ export type ServiceRequest = {
   supplies?: { boxes: number; extraLabels: number } | null;
   items: { id: string; label: string; name: string; status?: ItemStatus }[];
   job?: string | null; notes?: string | null;
-  estimate: Estimate; charged: number | null; payment?: RequestPayment | null;
+  estimate: Estimate; charged: number | null; payment?: RequestPayment | null; invoice?: RequestInvoice | null;
   statusLog: { status: ServiceStatus; at: string }[];
   driver: { name: string; phone?: string } | null;
   createdAt: string;

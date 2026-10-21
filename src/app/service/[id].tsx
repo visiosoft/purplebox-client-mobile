@@ -47,6 +47,15 @@ export default function TrackRequest() {
   const awaiting = r?.status === 'awaiting_payment';
 
   const refresh = () => ['services', 'items'].forEach((k) => qc.invalidateQueries({ queryKey: [k] }));
+  const bill = r?.invoice;
+  const owed = !!bill && bill.balanceDue > 0;
+
+  // The job's invoice is an ordinary invoice, paid the same way as rent; the webhook settles it on the server.
+  const payBill = useMutation({
+    mutationFn: () => payInApp({ kind: 'invoice', id: bill!.payId ?? bill!.id, label: t('Pay {amount}', { amount: aed(bill!.balanceDue) }) }),
+    onSuccess: () => ['service', 'billing', 'invoices', 'payments', 'home'].forEach((k) => qc.invalidateQueries({ queryKey: [k] })),
+    onError: (e: Error) => Alert.alert(t('Payment'), e.message),
+  });
 
   const payNow = useMutation({
     mutationFn: () => payInApp({ kind: 'service', id, label: pay ? t('Pay {amount}', { amount: aed(pay.amount) }) : undefined }),
@@ -110,6 +119,26 @@ export default function TrackRequest() {
                 <CircleCheck color={c.ok} size={20} strokeWidth={1.8} />
                 <Text style={{ flex: 1 }}>{t('Paid {amount}', { amount: aed(pay.totalCharged ?? pay.amount + pay.cardFee) })}{pay.paidAt ? ` · ${stamp(pay.paidAt)}` : ''}</Text>
               </View>
+            ) : null}
+
+            {bill ? (
+              <Card style={{ gap: 10 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                  <View style={{ gap: 2, flex: 1 }}>
+                    <Text variant="meta">{t('Invoice')}</Text>
+                    <Code>{bill.invoiceNo}</Code>
+                  </View>
+                  <Text variant="h3">{aed(owed ? bill.balanceDue : bill.total)}</Text>
+                </View>
+                {owed ? (
+                  <Button title={t('Pay {amount}', { amount: aed(bill.balanceDue) })} icon={CreditCard} loading={payBill.isPending} onPress={() => payBill.mutate()} />
+                ) : (
+                  <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                    <CircleCheck color={c.ok} size={18} strokeWidth={1.8} />
+                    <Text color="ink2">{t('Paid — thank you.')}</Text>
+                  </View>
+                )}
+              </Card>
             ) : null}
 
             {r.status === 'cancelled' ? (
