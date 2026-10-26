@@ -8,18 +8,19 @@
     "scheme": "purplebox",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
+      "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.purplebox.client"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#5B2BC9",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.purplebox.client",
+      "versionCode": 2,
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ]
@@ -35,7 +36,7 @@
         {
           "backgroundColor": "#5B2BC9",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 120
         }
       ],
       "expo-secure-store",
