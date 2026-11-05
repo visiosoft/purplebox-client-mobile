@@ -1,22 +1,24 @@
 import { useEffect, useState } from 'react';
 import { Alert, View } from 'react-native';
-import { ShieldCheck } from 'lucide-react-native';
+import { Phone, ShieldCheck } from 'lucide-react-native';
 import { Button, Input, Screen, Text } from '@/components/ui';
 import { StatusChip } from '@/components/bits';
-import { ContactField, ContactKind, contactValid, contactValue } from '@/components/ContactField';
+import { contactValid, contactValue } from '@/components/ContactField';
+import { LegalLinks } from '@/components/LegalLinks';
 import { useAuth } from '@/store/auth';
 import { useI18n } from '@/i18n';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/api/client';
 
 const ltr = { textAlign: 'left', writingDirection: 'ltr' } as const; // digits always read left to right
 
-// One screen for everyone. A mobile or email we already hold opens that
-// customer's account with their units, contracts and invoices loaded — no
-// linking step. A new mobile starts an account and asks for a name next
-// (see profile.tsx); an email we don't hold is turned away by the server.
+// Follow the authentication mode advertised by the server.
 export default function Login() {
   const { t } = useI18n();
-  const { requestOtp, verifyOtp } = useAuth();
-  const [kind, setKind] = useState<ContactKind>('phone');
+  const { requestOtp, verifyOtp, loginWithPhone } = useAuth();
+  const options = useQuery({ queryKey: ['login-options'], queryFn: () => api<{ phoneOnly: boolean }>('/customer-auth/login-options'), retry: false, staleTime: 0 });
+  const phoneOnly = options.data?.phoneOnly === true;
+  const kind = 'phone' as const;
   const [contact, setContact] = useState('');
   const [code, setCode] = useState('');
   const [sentTo, setSentTo] = useState<string | null>(null);
@@ -35,8 +37,9 @@ export default function Login() {
     try { await fn(); } catch (e: any) { Alert.alert(t('Something went wrong'), e.message); } finally { setBusy(false); }
   };
   const send = () => run(async () => {
+    if (phoneOnly) { await loginWithPhone(id); return; }
     const r = await requestOtp(id);
-    if (r.code) setCode(r.code);
+    setCode(__DEV__ ? r.code ?? '' : '');
     setSentTo(r.sentTo ?? id);
     setWait(30);
   });
@@ -46,26 +49,29 @@ export default function Login() {
       <View style={{ gap: 20 }}>
         <View style={{ gap: 8 }}>
           <StatusChip label="PurpleBox Storage" tone="brand" />
-          <Text variant="display" style={{ marginTop: 10 }}>{sentTo ? t('Check your\nmessages') : t('Log in or\nsign up')}</Text>
+          <Text variant="display" style={{ marginTop: 10 }}>{sentTo ? t('Check your\nmessages') : t(phoneOnly ? 'Log in' : 'Log in or\nsign up')}</Text>
           <Text color="ink2">
             {sentTo
-              ? t('Enter the code we sent to {phone}.', { phone: sentTo })
-              : t('Use the mobile or email you gave us. If you already rent with us, your units, contracts and invoices will be waiting.')}
+              ? t('Enter the code we sent on WhatsApp to {phone}.', { phone: sentTo })
+              : phoneOnly ? t('Use the mobile number on your storage account to continue.')
+              : t('Use your WhatsApp mobile number. If you already rent with us, use the number on your storage account.')}
           </Text>
         </View>
         {!sentTo ? (
           <>
-            <ContactField kind={kind} onKind={setKind} value={contact} onChange={setContact} onSubmit={() => contactValid(kind, contact) && send()} />
-            <Button title={t('Send code')} loading={busy} disabled={!contactValid(kind, contact)} onPress={send} />
+            <Input label={t(phoneOnly ? 'Mobile number' : 'WhatsApp mobile number')} icon={Phone} placeholder="+971 50 123 4567" keyboardType="phone-pad" autoComplete="tel" style={ltr}
+              value={contact} onChangeText={setContact} editable={!busy} onSubmitEditing={() => !busy && !options.isPending && contactValid(kind, contact) && send()} />
+            <Button title={t(phoneOnly ? 'Continue' : 'Send code on WhatsApp')} loading={busy || options.isPending} disabled={!contactValid(kind, contact)} onPress={send} />
           </>
         ) : (
           <>
             <Input label={t('Verification code')} icon={ShieldCheck} style={ltr} keyboardType="number-pad" textContentType="oneTimeCode" autoComplete="one-time-code" value={code} onChangeText={setCode} maxLength={6} />
-            <Button title={t('Verify & continue')} loading={busy} disabled={code.length < 4} onPress={() => run(() => verifyOtp(id, code))} />
+            <Button title={t('Verify & continue')} loading={busy} disabled={!/^\d{6}$/.test(code)} onPress={() => run(() => verifyOtp(id, code))} />
             <Button title={wait > 0 ? t('Resend code in {n}s', { n: wait }) : t('Resend code')} variant="soft" disabled={wait > 0 || busy} onPress={send} />
-            <Button title={kind === 'phone' ? t('Use a different number') : t('Use a different email')} variant="ghost" onPress={() => { setSentTo(null); setCode(''); }} />
+            <Button title={t('Use a different number')} variant="ghost" disabled={busy} onPress={() => { setSentTo(null); setCode(''); }} />
           </>
         )}
+        <LegalLinks />
       </View>
     </Screen>
   );

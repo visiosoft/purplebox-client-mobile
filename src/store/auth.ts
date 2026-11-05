@@ -5,9 +5,17 @@ import { useLock } from '@/store/lock';
 import { ApiError, api, loadToken, saveToken, setUnauthorizedHandler } from '@/api/client';
 import { queryClient } from '@/api/queryClient';
 import { clearDownloadedDocuments } from '@/api/storage';
+import { usePaying } from '@/store/paying';
 
 // Nothing of the last customer's may be left for whoever signs in next on this phone.
-const forgetCustomerData = () => { queryClient.clear(); clearDownloadedDocuments(); };
+const forgetCustomerData = () => {
+  queryClient.clear();
+  clearDownloadedDocuments();
+  useRequests.getState().clear();
+  syncBookingReminders(null, { enabled: false });
+  useLock.getState().unlock();
+  usePaying.getState().clear();
+};
 
 export type Customer = { id: string; fullName: string; phone: string; email?: string };
 
@@ -26,6 +34,7 @@ type AuthState = {
   /** `identifier` is a mobile in E.164 or an email; the server finds the account on either. */
   requestOtp: (identifier: string) => Promise<OtpSent>;
   verifyOtp: (identifier: string, code: string, fullName?: string) => Promise<{ isNew: boolean }>;
+  loginWithPhone: (phone: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -51,11 +60,16 @@ export const useAuth = create<AuthState>((set) => ({
   },
   // Only a non-production server returns `code`; it lets a test build log in without a WhatsApp template.
   requestOtp: (identifier) => api<OtpSent>('/customer-auth/request-otp', { body: contactBody(identifier) }),
+  loginWithPhone: async (phone) => {
+    const result = await api<{ token: string; customer: Customer }>('/customer-auth/phone-login', { body: { phone } });
+    await saveToken(result.token);
+    set({ customer: result.customer });
+  },
   verifyOtp: async (identifier, code, fullName) => {
     const r = await api('/customer-auth/verify-otp', { body: { ...contactBody(identifier), code, fullName } });
     await saveToken(r.token);
     set({ customer: r.customer });
     return { isNew: !!r.isNew };
   },
-  logout: async () => { await forgetPushToken(); await saveToken(null); useRequests.getState().clear(); syncBookingReminders(null, { enabled: false }); useLock.getState().unlock(); forgetCustomerData(); set({ customer: null }); },
+  logout: async () => { await forgetPushToken(); await saveToken(null); forgetCustomerData(); set({ customer: null }); },
 }));

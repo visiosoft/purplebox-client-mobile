@@ -21,6 +21,7 @@ import { dateLocale, useI18n } from '@/i18n';
 import { useDir } from '@/i18n/useDir';
 import { aed, shortDate } from '@/lib/format';
 import { WHATSAPP } from '@/lib/contact';
+import { LegalLinks } from '@/components/LegalLinks';
 
 
 type TabKey = 'paid' | 'invoices' | 'saved';
@@ -209,6 +210,8 @@ export default function ProfileTab() {
             right={<Switch value={promotions} disabled={!prefs.data} onValueChange={(v) => setPromotions.mutate(v)} trackColor={{ true: c.br }} />} />
           <Row leading={<RowIcon icon={MessageCircle} />} title={t('Chat with us')} sub={t('WhatsApp, 7 days a week')} onPress={() => Linking.openURL(WHATSAPP)} right={<ChevronForward color={c.ink3} size={18} strokeWidth={1.6} />} />
         </View>
+        <LegalLinks />
+        <Button title={t('Delete account')} variant="ghost" onPress={() => router.push('/delete-account')} />
       </ScrollView>
     </View>
   );
