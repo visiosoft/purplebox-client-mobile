@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
-import { Alert, Linking, Pressable, View } from 'react-native';
+import { ActivityIndicator, Alert, Linking, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
   ArrowUpLeft, ArrowUpRight, Bell, CalendarCheck, CalendarClock, CheckCircle2, Clock, CreditCard, FileText, IdCard, LogOut, MapPin, MessageCircle,
   Receipt, Star,
@@ -13,7 +13,9 @@ import { RequestRow } from '@/components/service';
 import { Contract, openDocument, storageApi } from '@/api/storage';
 import { isOpen, servicesApi } from '@/api/services';
 import { notificationsApi } from '@/api/notifications';
-import { useBilling } from '@/hooks/useBilling';
+import { BillInvoice, useBilling } from '@/hooks/useBilling';
+import { payInApp } from '@/lib/payInApp';
+import { usePaying } from '@/store/paying';
 import { useProfile } from '@/hooks/useProfile';
 import { useBiometricInfo } from '@/hooks/useBiometricInfo';
 import { confirmIdentity } from '@/lib/biometrics';
@@ -136,6 +138,29 @@ export default function HomeTab() {
   const cheapest = units.reduce((m, u) => Math.min(m, u.price), Infinity);
   const reserve = (sizeSqf?: number) => router.push(sizeSqf ? { pathname: '/book', params: { size: String(sizeSqf) } } : '/book');
   const toPayments = () => router.navigate('/(tabs)/payments');
+
+  // "Pay now" opens Stripe's checkout straight away. Payment is per invoice, so with one open invoice we pay it;
+  // with several we offer the most urgent one (or the full list on the Payments tab).
+  const recentlyPaid = usePaying((s) => s.paid);
+  const markPaid = usePaying((s) => s.markPaid);
+  const payInvoice = useMutation({
+    mutationFn: (inv: BillInvoice) => payInApp({ ...inv.pay!, label: t('Pay {amount}', { amount: aed(inv.balance) }) }),
+    onSuccess: (r, inv) => { if (r === 'paid') { markPaid(inv.pay!.id); Alert.alert(t('Payment received'), t('Thank you! It will show under History in a moment.')); } },
+    onSettled: () => { bill.refetch(); setTimeout(bill.refetch, 4000); },
+    onError: (e: Error) => Alert.alert(t('Payment'), e.message, [{ text: 'WhatsApp', onPress: () => Linking.openURL(WHATSAPP) }, { text: t('OK') }]),
+  });
+  const payNow = () => {
+    const open = [...bill.overdue, ...bill.upcoming];
+    const payable = open.filter((i) => i.pay && !recentlyPaid[i.pay.id]);
+    if (!payable.length) return toPayments();
+    if (payable.length === 1) return payInvoice.mutate(payable[0]);
+    const first = payable[0];
+    Alert.alert(t('Pay now'), t('You have {n} open invoices. Invoices are paid one at a time.', { n: payable.length }), [
+      { text: t('Cancel'), style: 'cancel' },
+      { text: t('See all'), onPress: toPayments },
+      { text: t('Pay {number} · {amount}', { number: first.number, amount: aed(first.balance) }), onPress: () => payInvoice.mutate(first) },
+    ]);
+  };
   const toDocuments = () => router.navigate({ pathname: '/(tabs)/storage', params: { tab: 'documents' } });
   const viewContract = () => {
     const agreements = docs.data?.agreements ?? [];
@@ -191,7 +216,7 @@ export default function HomeTab() {
         ) : null}
 
         {owing > 0 ? (
-          <Pressable onPress={toPayments} accessibilityRole="button"
+          <Pressable onPress={payNow} disabled={payInvoice.isPending} accessibilityRole="button" accessibilityLabel={t('Pay now')}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.dk, borderRadius: radius.card, borderCurve: 'continuous', padding: 16 }}>
             <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c.ac, alignItems: 'center', justifyContent: 'center' }}>
               <CreditCard color={c.acInk} size={20} strokeWidth={1.6} />
@@ -200,7 +225,9 @@ export default function HomeTab() {
               <Text variant="title" color="onDk">{t('{amount} due', { amount: aed(owing) })}</Text>
               <Text variant="meta" color="onDk2">{due !== null && due >= 0 && due <= 14 ? (due === 1 ? t('Next payment in 1 day') : t('Next payment in {n} days', { n: due })) : t('See your invoices')}</Text>
             </View>
-            <Text style={{ fontFamily: fonts.medium, color: c.ac }}>{t('Pay now')}</Text>
+            {payInvoice.isPending
+              ? <ActivityIndicator color={c.ac} />
+              : <Text style={{ fontFamily: fonts.medium, color: c.ac }}>{t('Pay now')}</Text>}
           </Pressable>
         ) : null}
 

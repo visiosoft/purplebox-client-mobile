@@ -1,14 +1,18 @@
 import { useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { storageApi } from '@/api/storage';
+import type { PayTarget } from '@/api/pay';
 
 /** One shape for an invoice, whether it came from Zoho Books or (if Zoho isn't connected) our own records. */
 export type BillInvoice = {
   id: string; number: string; date: string; dueDate: string; total: number; balance: number;
   state: 'paid' | 'overdue' | 'upcoming'; partial: boolean;
   pdfHref: string;
-  /** The id our own server pays by (Zoho invoices are matched to it by invoice number). */
-  payId?: string;
+  /**
+   * How to pay it. Our own invoice when there is one with the same number (that updates our records and Zoho
+   * together); otherwise the Zoho invoice itself, which the server records as paid in Zoho once Stripe confirms.
+   */
+  pay?: PayTarget;
 };
 export type BillPayment = { id: string; date: string; amount: number; method: string; invoiceNumbers: string; href?: string };
 
@@ -38,7 +42,8 @@ export function useBilling() {
       invoices = zoho.data!.invoices.map((i) => ({
         id: i.id, number: i.number, date: i.date, dueDate: i.dueDate, total: i.total, balance: i.balance,
         state: classify(i.balance, i.dueDate), partial: i.balance > 0 && i.balance < i.total,
-        pdfHref: ZOHO_PDF(i.id), payId: local.get(i.number),
+        pdfHref: ZOHO_PDF(i.id),
+        pay: local.has(i.number) ? { kind: 'invoice', id: local.get(i.number)! } : { kind: 'zoho-invoice', id: i.id },
       }));
       const byNumber = new Map(invoices.map((i) => [i.number, i]));
       payments = zoho.data!.payments.map((p) => {
@@ -49,7 +54,7 @@ export function useBilling() {
       invoices = (localInvoices.data ?? []).map((i) => ({
         id: i.id, number: i.invoiceNo, date: i.invoiceDate, dueDate: i.dueDate, total: i.total, balance: i.balanceDue,
         state: classify(i.balanceDue, i.dueDate), partial: i.balanceDue > 0 && i.balanceDue < i.total,
-        pdfHref: `/customer-portal/storage/invoices/${i.id}/pdf`, payId: i.id,
+        pdfHref: `/customer-portal/storage/invoices/${i.id}/pdf`, pay: { kind: 'invoice', id: i.id },
       }));
       payments = (localPayments.data ?? []).map((p) => ({
         id: p.id, date: p.paidDate, amount: p.amount, method: p.method, invoiceNumbers: p.contractNo ?? '',

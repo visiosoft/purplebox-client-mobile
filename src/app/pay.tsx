@@ -18,7 +18,7 @@ export default function PayScreen() {
   const qc = useQueryClient();
   const markPaid = usePaying((st) => st.markPaid);
   const { c } = useTheme();
-  const { s, kind, id } = useLocalSearchParams<{ s?: string; kind: 'invoice' | 'booking' | 'service' | 'card'; id: string }>();
+  const { s, kind, id } = useLocalSearchParams<{ s?: string; kind: 'invoice' | 'zoho-invoice' | 'booking' | 'service' | 'card'; id: string }>();
   const [session] = useState(() => paySession(s));
   const { url, clientSecret, publishableKey } = session ?? {};
   const [paid, setPaid] = useState(false);
@@ -34,7 +34,7 @@ export default function PayScreen() {
     else if (kind === 'service') { refreshSoon(); router.back(); }
     else { refreshSoon(); router.back(); }
   };
-  const done = () => { setPaid(true); if (kind === 'invoice') markPaid(id); refreshSoon(); };
+  const done = () => { setPaid(true); if (kind === 'invoice' || kind === 'zoho-invoice') markPaid(id); refreshSoon(); };
 
   return (
     <Screen style={{ paddingBottom: 16 }}>

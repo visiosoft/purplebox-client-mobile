@@ -3,11 +3,11 @@ import { api } from './client';
 /** "Keep my card for next time", and separately "charge it automatically" (only ever on the customer's explicit choice). */
 export type SaveCard = { saveCard?: boolean; autopayConsent?: boolean };
 
-/** What is being paid: an invoice (Payments tab), a booking that has been reserved (Review & pay), or a delivery request. */
-export type PayTarget = { kind: 'invoice' | 'booking' | 'service'; id: string };
+/** What is being paid: an invoice (Payments tab; `zoho-invoice` for one that lives only in Zoho Books), a booking that has been reserved (Review & pay), or a delivery request. */
+export type PayTarget = { kind: 'invoice' | 'zoho-invoice' | 'booking' | 'service'; id: string };
 
 const BASES: Record<PayTarget['kind'], string> = {
-  invoice: '/customer-portal/storage/invoices', booking: '/customer-portal/booking', service: '/customer-portal/storage/services',
+  invoice: '/customer-portal/storage/invoices', 'zoho-invoice': '/customer-portal/storage/billing/invoices', booking: '/customer-portal/booking', service: '/customer-portal/storage/services',
 };
 const base = (t: PayTarget) => `${BASES[t.kind]}/${t.id}`;
 

@@ -52,10 +52,10 @@ export default function PaymentsTab() {
   // Stripe confirms payment to the server by webhook, which then updates Zoho Books; so look again shortly after.
   const pay = useMutation({
     mutationFn: (inv: BillInvoice) => {
-      if (!inv.payId) throw Object.assign(new Error(t('Online payment is not set up for this invoice yet. Please message us and we will send you a payment link.')), { noLink: true });
-      return payInApp({ kind: 'invoice', id: inv.payId, label: t('Pay {amount}', { amount: aed(inv.balance) }), saveCard: offerAutopay && autoSave, autopayConsent: offerAutopay && autoSave });
+      if (!inv.pay) throw Object.assign(new Error(t('Online payment is not set up for this invoice yet. Please message us and we will send you a payment link.')), { noLink: true });
+      return payInApp({ ...inv.pay, label: t('Pay {amount}', { amount: aed(inv.balance) }), saveCard: offerAutopay && autoSave, autopayConsent: offerAutopay && autoSave });
     },
-    onSuccess: (r, inv) => { if (r === 'paid' && inv.payId) markPaid(inv.payId); if (r === 'paid') Alert.alert(t('Payment received'), t('Thank you! It will show under History in a moment.')); },
+    onSuccess: (r, inv) => { if (r === 'paid' && inv.pay) markPaid(inv.pay.id); if (r === 'paid') Alert.alert(t('Payment received'), t('Thank you! It will show under History in a moment.')); },
     onSettled: () => { b.refetch(); setTimeout(b.refetch, 4000); },
     onError: (e: Error & { noLink?: boolean }) => Alert.alert(t('Payment'), e.message, e.noLink || e.message.includes('message us') ? [{ text: 'WhatsApp', onPress: () => Linking.openURL(WHATSAPP) }, { text: t('OK') }] : undefined),
   });
@@ -68,7 +68,7 @@ export default function PaymentsTab() {
     <View key={i.id}>
       <Row leading={<RowIcon icon={FileText} />} title={`${i.number} · ${aed(i.balance)}`} sub={dueText(i)} onPress={() => view(i)}
         right={<StatusChip label={i.state === 'overdue' ? t('Overdue') : i.partial ? t('Part paid') : t('Upcoming')} tone={i.state === 'overdue' ? 'err' : 'warn'} />} />
-      {i.payId && recentlyPaid[i.payId] ? (
+      {i.pay && recentlyPaid[i.pay.id] ? (
         <Button title={t('Payment processing…')} variant="soft" icon={Check} disabled onPress={() => {}} style={{ height: 46, marginBottom: 8 }} />
       ) : (
         <Button title={t('Pay {amount}', { amount: aed(i.balance) })} variant={i.state === 'overdue' ? 'primary' : 'accent'} icon={CreditCard}
