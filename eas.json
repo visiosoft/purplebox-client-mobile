@@ -8,7 +8,7 @@
     },
     "production": {
       "env": { "EXPO_PUBLIC_API_URL": "https://api.purplebox.ae/api" },
-      "android": { "buildType": "app-bundle" }
+      "android": { "buildType": "app-bundle", "credentialsSource": "local" }
     }
   }
 }

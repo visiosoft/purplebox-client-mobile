@@ -21,9 +21,8 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.purplebox.client",
       "versionCode": 3,
-      "permissions": [
-        "android.permission.RECORD_AUDIO"
-      ]
+      "permissions": [],
+      "blockedPermissions": ["android.permission.RECORD_AUDIO"]
     },
     "web": {
       "output": "static",
@@ -62,7 +61,8 @@
         "expo-image-picker",
         {
           "cameraPermission": "PurpleBox uses the camera to photograph your Emirates ID or passport for your storage agreement.",
-          "photosPermission": "PurpleBox needs your photos so you can upload your Emirates ID or passport."
+          "photosPermission": "PurpleBox needs your photos so you can upload your Emirates ID or passport.",
+          "microphonePermission": false
         }
       ],
       "expo-sharing",
