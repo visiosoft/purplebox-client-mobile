@@ -62,11 +62,11 @@ export default function DeleteAccount() {
             <Text color="ink2">{t('Deleting your account does not cancel storage contracts, scheduled services or outstanding payments. Contact us to arrange check-out first.')}</Text>
           </Card>
           {sentTo ? <>
-            <Text>{t('Enter the code we sent on WhatsApp to {phone}.', { phone: sentTo })}</Text>
+            <Text>{t('Enter the code we sent to {phone}.', { phone: sentTo })}</Text>
             <Input label={t('Verification code')} value={code} onChangeText={(value) => setCode(value.replace(/\D/g, ''))} maxLength={6} keyboardType="number-pad" autoComplete="one-time-code" textContentType="oneTimeCode" editable={!busy} style={{ writingDirection: 'ltr', textAlign: 'left' }} />
             <Button title={t('Request deletion')} loading={busy} disabled={!/^\d{6}$/.test(code)} onPress={confirm} />
             <Button title={wait ? t('Resend code in {n}s', { n: wait }) : t('Resend code')} variant="soft" disabled={busy || wait > 0} onPress={send} />
-          </> : <Button title={t('Send code on WhatsApp')} loading={busy} onPress={send} />}
+          </> : <Button title={t('Send verification code')} loading={busy} onPress={send} />}
           <Button title={t('Keep my account')} variant="soft" disabled={busy} onPress={() => router.back()} />
         </>}
         <LegalLinks />

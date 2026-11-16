@@ -25,7 +25,7 @@ export const needsProfile = (c: Customer | null) => !!c && (!c.fullName?.trim() 
 // Servers before email login read only `phone`; newer ones read `identifier` first.
 const contactBody = (identifier: string) => (identifier.includes('@') ? { identifier } : { identifier, phone: identifier });
 
-export type OtpSent = { channel: 'phone' | 'email'; sentTo?: string; code?: string };
+export type OtpSent = { channel: 'phone' | 'email'; delivery?: 'sms' | 'whatsapp'; sentTo?: string; code?: string };
 
 type AuthState = {
   customer: Customer | null;

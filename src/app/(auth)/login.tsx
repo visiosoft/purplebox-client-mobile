@@ -16,8 +16,11 @@ const ltr = { textAlign: 'left', writingDirection: 'ltr' } as const; // digits a
 export default function Login() {
   const { t } = useI18n();
   const { requestOtp, verifyOtp, loginWithPhone } = useAuth();
-  const options = useQuery({ queryKey: ['login-options'], queryFn: () => api<{ phoneOnly: boolean }>('/customer-auth/login-options'), retry: false, staleTime: 0 });
+  const options = useQuery({ queryKey: ['login-options'], queryFn: () => api<{ phoneOnly: boolean; delivery?: 'sms' | 'whatsapp' }>('/customer-auth/login-options'), retry: false, staleTime: 0 });
   const phoneOnly = options.data?.phoneOnly === true;
+  const [sentBy, setSentBy] = useState<'sms' | 'whatsapp' | null>(null);
+  // Codes go by SMS (Twilio) when the server says so; older servers only know WhatsApp.
+  const sms = (sentBy ?? options.data?.delivery) === 'sms';
   const kind = 'phone' as const;
   const [contact, setContact] = useState('');
   const [code, setCode] = useState('');
@@ -41,6 +44,7 @@ export default function Login() {
     const r = await requestOtp(id);
     setCode(__DEV__ ? r.code ?? '' : '');
     setSentTo(r.sentTo ?? id);
+    setSentBy(r.delivery ?? null);
     setWait(30);
   });
 
@@ -52,16 +56,17 @@ export default function Login() {
           <Text variant="display" style={{ marginTop: 10 }}>{sentTo ? t('Check your\nmessages') : t(phoneOnly ? 'Log in' : 'Log in or\nsign up')}</Text>
           <Text color="ink2">
             {sentTo
-              ? t('Enter the code we sent on WhatsApp to {phone}.', { phone: sentTo })
+              ? t(sms ? 'Enter the code we sent by SMS to {phone}.' : 'Enter the code we sent on WhatsApp to {phone}.', { phone: sentTo })
               : phoneOnly ? t('Use the mobile number on your storage account to continue.')
+              : sms ? t('Enter your mobile number and we will text you a code. If you already rent with us, use the number on your storage account.')
               : t('Use your WhatsApp mobile number. If you already rent with us, use the number on your storage account.')}
           </Text>
         </View>
         {!sentTo ? (
           <>
-            <Input label={t(phoneOnly ? 'Mobile number' : 'WhatsApp mobile number')} icon={Phone} placeholder="+971 50 123 4567" keyboardType="phone-pad" autoComplete="tel" style={ltr}
+            <Input label={t(phoneOnly || sms ? 'Mobile number' : 'WhatsApp mobile number')} icon={Phone} placeholder="+971 50 123 4567" keyboardType="phone-pad" autoComplete="tel" style={ltr}
               value={contact} onChangeText={setContact} editable={!busy} onSubmitEditing={() => !busy && !options.isPending && contactValid(kind, contact) && send()} />
-            <Button title={t(phoneOnly ? 'Continue' : 'Send code on WhatsApp')} loading={busy || options.isPending} disabled={!contactValid(kind, contact)} onPress={send} />
+            <Button title={t(phoneOnly ? 'Continue' : sms ? 'Send code by SMS' : 'Send code on WhatsApp')} loading={busy || options.isPending} disabled={!contactValid(kind, contact)} onPress={send} />
           </>
         ) : (
           <>
