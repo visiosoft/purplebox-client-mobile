@@ -1,0 +1,333 @@
+import { Children, Fragment, ReactElement, ReactNode, isValidElement, useEffect, useRef, useState } from 'react';
+import { Platform, Pressable, ScrollView, RefreshControl, View } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
+import Animated, { FadeInDown, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import Svg, { Circle, Line, Path } from 'react-native-svg';
+import { ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react-native';
+import { useI18n } from '@/i18n';
+import { useDir } from '@/i18n/useDir';
+import { useTheme } from '@/theme/useTheme';
+import { fonts, radius } from '@/theme/tokens';
+import { Button, IconButton, Text } from './ui';
+
+type Tone = 'ok' | 'warn' | 'err' | 'brand' | 'neutral';
+
+export function StatusChip({ label, tone = 'neutral', icon: Icon }: { label: string; tone?: Tone; icon?: LucideIcon }) {
+  const { c } = useTheme();
+  const [bg, fg] = {
+    ok: [c.okBg, c.ok], warn: [c.warnBg, c.warn], err: [c.errBg, c.err], brand: [c.acSoft, c.ink], neutral: [c.sf2, c.ink2],
+  }[tone];
+  return (
+    <View style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: bg, borderRadius: radius.chip, paddingHorizontal: 12, paddingVertical: 6 }}>
+      {Icon ? <Icon color={fg} size={13} strokeWidth={1.8} /> : <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: fg }} />}
+      <Text style={{ color: tone === 'brand' ? c.ink : c.ink2, fontFamily: fonts.regular, fontSize: 13, textTransform: 'capitalize' }}>{label}</Text>
+    </View>
+  );
+}
+
+export const invoiceTone = (s: string): Tone => (s === 'paid' ? 'ok' : s === 'overdue' ? 'err' : 'warn');
+
+/** Separate pills, like "Directory · Org Chat": the chosen one goes charcoal. */
+export function Segmented<T extends string>({ value, onChange, options }: {
+  value: T; onChange: (v: T) => void; options: { value: T; label: string }[];
+}) {
+  const { c } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', gap: 8 }}>
+      {options.map((o) => {
+        const on = o.value === value;
+        return (
+          <Pressable key={o.value} onPress={() => onChange(o.value)} accessibilityRole="tab" accessibilityState={{ selected: on }}
+            style={({ pressed }) => ({
+              flex: 1, height: 44, borderRadius: radius.chip, alignItems: 'center', justifyContent: 'center',
+              backgroundColor: on ? c.br : c.sf, borderWidth: on ? 0 : 1, borderColor: c.ln, opacity: pressed ? 0.8 : 1,
+            })}>
+            <Text style={{ fontFamily: fonts.regular, fontSize: 14, color: on ? c.onBr : c.ink }}>{o.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+export function Row({ title, sub, right, onPress, leading, dark }: {
+  title: string; sub?: string; right?: ReactNode; onPress?: () => void; leading?: ReactNode; dark?: boolean;
+}) {
+  const { c } = useTheme();
+  const { ChevronForward } = useDir();
+  return (
+    <Pressable onPress={onPress} disabled={!onPress}
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, opacity: pressed ? 0.7 : 1 })}>
+      {leading}
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text variant="title" color={dark ? 'onDk' : 'ink'} style={{ fontSize: 15 }}>{title}</Text>
+        {sub ? <Text variant="meta" color={dark ? 'onDk3' : 'ink3'}>{sub}</Text> : null}
+      </View>
+      {right ?? (onPress ? <ChevronForward color={dark ? c.onDk3 : c.ink3} size={18} strokeWidth={1.6} /> : null)}
+    </Pressable>
+  );
+}
+
+/** A small round glyph that sits in front of a row, like the device icons in Session History. */
+export function RowIcon({ icon: Icon, dark }: { icon: LucideIcon; dark?: boolean }) {
+  const { c } = useTheme();
+  return (
+    <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: dark ? c.sf : c.sf2, alignItems: 'center', justifyContent: 'center' }}>
+      <Icon color={dark ? c.ink : c.ink2} size={18} strokeWidth={1.5} />
+    </View>
+  );
+}
+
+/** A soft pulsing block that stands in for content while it loads. */
+export function Skeleton({ height = 96, radiusPx = 28 }: { height?: number; radiusPx?: number }) {
+  const { c } = useTheme();
+  const reduced = useReducedMotion();
+  const o = useSharedValue(0.55);
+  useEffect(() => { if (!reduced) o.set(withRepeat(withTiming(1, { duration: 800 }), -1, true)); }, [o, reduced]);
+  const style = useAnimatedStyle(() => ({ opacity: o.get() }));
+  return <Animated.View style={[{ height, borderRadius: radiusPx, borderCurve: 'continuous', backgroundColor: c.sf2 }, style]} />;
+}
+
+/** A scrolling page with pull-to-refresh, skeleton loading and a retry on errors, so each screen only renders its data. */
+// Screens often wrap their content in `{data ? <>…</> : null}`. Opening the
+// fragments lets every card get its own gap and entrance, not just the wrapper.
+const flatten = (children: ReactNode): ReactNode[] =>
+  Children.toArray(children).flatMap((child) =>
+    isValidElement(child) && child.type === Fragment ? flatten((child as ReactElement<{ children?: ReactNode }>).props.children) : [child]);
+
+export function Page({ children, loading, error, refreshing, onRefresh }: {
+  children: ReactNode; loading?: boolean; error?: string | null; refreshing?: boolean; onRefresh?: () => void;
+}) {
+  const { c } = useTheme();
+  const { t } = useI18n();
+  const reduced = useReducedMotion();
+  if (loading) return <View style={{ gap: 14 }}><Skeleton height={220} /><Skeleton height={120} /><Skeleton height={120} /></View>;
+  return (
+    <KeyboardAwareScrollView contentContainerStyle={{ paddingBottom: 130, gap: 14 }} showsVerticalScrollIndicator={false}
+      bottomOffset={24} keyboardShouldPersistTaps="handled"
+      refreshControl={onRefresh ? <RefreshControl refreshing={!!refreshing} onRefresh={onRefresh} tintColor={c.ink} /> : undefined}>
+      {error ? (
+        <View style={{ gap: 10, backgroundColor: c.errBg, borderRadius: radius.card, padding: 16 }}>
+          <Text style={{ color: c.err }}>{error}</Text>
+          {onRefresh ? <Button title={t('Try again')} variant="soft" style={{ height: 44 }} onPress={onRefresh} /> : null}
+        </View>
+      ) : null}
+      {flatten(children).map((child, i) => (
+        <Animated.View key={i} entering={reduced ? undefined : FadeInDown.delay(Math.min(i, 8) * 70).springify().damping(18)}>{child}</Animated.View>
+      ))}
+    </KeyboardAwareScrollView>
+  );
+}
+
+/** "Step 2 of 4 · ID" for the booking journey, so people know how far there is to go. */
+export const BOOKING_STEPS = ['Size', 'ID', 'Pay', 'Sign'] as const;
+export function Steps({ current }: { current: 0 | 1 | 2 | 3 }) {
+  const { c } = useTheme();
+  const { t } = useI18n();
+  const stepName = t(BOOKING_STEPS[current]);
+  const vars = { n: current + 1, total: BOOKING_STEPS.length, name: stepName };
+  return (
+    <View style={{ gap: 8 }} accessibilityLabel={t('Step {n} of {total}: {name}', vars)}>
+      <View style={{ flexDirection: 'row', gap: 6 }}>
+        {BOOKING_STEPS.map((l, i) => <View key={l} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: i <= current ? c.br : c.sf3 }} />)}
+      </View>
+      <Text variant="meta">{t('Step {n} of {total} · {name}', vars)}</Text>
+    </View>
+  );
+}
+
+
+/** Solid bar for the filled part, then a hatched track for the rest — as on the match-rate cards. */
+export function Meter({ value, color, height = 8 }: { value: number; color?: string; height?: number }) {
+  const { c } = useTheme();
+  const v = Math.min(1, Math.max(0, value));
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, height }}>
+      {v > 0 ? <View style={{ flex: v, height, borderRadius: height / 2, backgroundColor: color ?? c.ok }} /> : null}
+      {v < 1 ? (
+        <View style={{ flex: 1 - v, height, borderRadius: height / 2, overflow: 'hidden' }}>
+          <Svg width="100%" height={height}>
+            {Array.from({ length: 160 }, (_, i) => (
+              <Line key={i} x1={i * 4 - height} y1={height} x2={i * 4} y2={0} stroke={c.ink3} strokeOpacity={0.45} strokeWidth={1} />
+            ))}
+          </Svg>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const arcPoint = (cx: number, cy: number, r: number, t: number) => {
+  const a = Math.PI - t * Math.PI;
+  return [cx + r * Math.cos(a), cy - r * Math.sin(a)] as const;
+};
+const arc = (cx: number, cy: number, r: number, t0: number, t1: number) => {
+  const [x0, y0] = arcPoint(cx, cy, r, t0);
+  const [x1, y1] = arcPoint(cx, cy, r, t1);
+  return `M ${x0} ${y0} A ${r} ${r} 0 0 1 ${x1} ${y1}`;
+};
+
+/** The half-moon gauge from "Security status": a yellow arc for the value, a charcoal one for the rest. */
+export function Gauge({ value, label, caption, size = 240 }: { value: number; label: string; caption?: string; size?: number }) {
+  const { c, isDark } = useTheme();
+  const { isRTL } = useI18n();
+  const v = Math.min(1, Math.max(0, value));
+  const stroke = size * 0.13;
+  const r = (size - stroke) / 2;
+  const cx = size / 2;
+  const cy = r + stroke / 2;
+  const h = cy + stroke / 2;
+  const gap = 0.07;
+  return (
+    <View style={{ alignSelf: 'stretch', alignItems: 'center', gap: 10 }}>
+      <View style={{ width: size, height: h }}>
+        <Svg width={size} height={h} style={isRTL ? { transform: [{ scaleX: -1 }] } : undefined}>
+          {v > 0.01 ? <Path d={arc(cx, cy, r, 0, Math.max(0.001, v - (v < 1 ? gap / 2 : 0)))} stroke={c.ac} strokeWidth={stroke} strokeLinecap="round" fill="none" /> : null}
+          {v < 0.99 ? <Path d={arc(cx, cy, r, Math.min(0.999, v + (v > 0 ? gap / 2 : 0)), 1)} stroke={isDark ? c.sf3 : c.dk} strokeWidth={stroke} strokeLinecap="round" fill="none" /> : null}
+        </Svg>
+        {/* the number sits inside the arc, kept clear of its ends */}
+        <View style={{ position: 'absolute', left: stroke + 8, right: stroke + 8, bottom: 0, alignItems: 'center' }}>
+          <Text variant="display" numberOfLines={1} adjustsFontSizeToFit style={{ fontSize: size * 0.2, lineHeight: size * 0.23 }}>{label}</Text>
+        </View>
+      </View>
+      {caption ? <Text variant="meta" color="ink2" style={{ textAlign: 'center', paddingHorizontal: 8 }}>{caption}</Text> : null}
+    </View>
+  );
+}
+
+/** Rounded "metric" pills in a row, like Experience · Skills · Testing · Interview. */
+export function MetricPills({ items, dark }: { items: { label: string; value: string; tone?: 'accent' | 'dark' | 'hatch' | 'light' }[]; dark?: boolean }) {
+  const { c } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', gap: 6 }}>
+      {items.map((m) => {
+        const tone = m.tone ?? 'light';
+        const bg = { accent: c.ac, dark: c.dk, hatch: 'transparent', light: dark ? c.dk2 : c.sf2 }[tone];
+        const fg = tone === 'accent' ? c.acInk : tone === 'dark' || dark ? c.onDk : c.ink;
+        return (
+          <View key={m.label} style={{ flex: 1, gap: 6 }}>
+            <Text variant="meta" color={dark ? 'onDk2' : 'ink2'} numberOfLines={1}>{m.label}</Text>
+            <View style={{ height: 36, borderRadius: radius.chip, backgroundColor: bg, justifyContent: 'center', paddingHorizontal: 12, overflow: 'hidden', borderWidth: tone === 'hatch' ? 1 : 0, borderColor: c.ln2 }}>
+              {tone === 'hatch' ? (
+                <Svg width="100%" height={36} style={{ position: 'absolute', left: 0, top: 0 }}>
+                  {Array.from({ length: 60 }, (_, i) => (
+                    <Line key={i} x1={i * 6 - 36} y1={36} x2={i * 6} y2={0} stroke={c.ink3} strokeOpacity={0.35} strokeWidth={1} />
+                  ))}
+                </Svg>
+              ) : null}
+              <Text numberOfLines={1} style={{ fontFamily: fonts.regular, fontSize: 12, color: fg }}>{m.value}</Text>
+            </View>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+/** Smooth yellow line on a charcoal card with a tooltip pill on the selected point, as in "Test Statistics". */
+export function LineChart({ points, labels, format, height = 120 }: {
+  points: number[]; labels: string[]; format: (n: number) => string; height?: number;
+}) {
+  const { c } = useTheme();
+  const [w, setW] = useState(0);
+  const [sel, setSel] = useState(points.length - 1);
+  const max = Math.max(1, ...points);
+  const pad = 10;
+  const step = points.length > 1 ? (w - pad * 2) / (points.length - 1) : 0;
+  const xy = points.map((p, i) => [pad + i * step, height - 12 - (p / max) * (height - 44)] as const);
+  const d = xy.reduce((acc, [x, y], i) => {
+    if (i === 0) return `M ${x} ${y}`;
+    const [px, py] = xy[i - 1];
+    const mx = (px + x) / 2;
+    return `${acc} C ${mx} ${py} ${mx} ${y} ${x} ${y}`;
+  }, '');
+  const s = Math.min(sel, points.length - 1);
+  const [sx, sy] = xy[s] ?? [0, 0];
+  return (
+    // the chart is drawn left-to-right (oldest month first), so keep its layout that way in Arabic too
+    <View style={{ direction: 'ltr' }} onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+      {w > 0 && points.length ? (
+        <View style={{ height }}>
+          <Svg width={w} height={height}>
+            <Line x1={0} x2={w} y1={height - 12} y2={height - 12} stroke={c.onDk3} strokeDasharray="3 5" strokeWidth={1} />
+            <Line x1={sx} x2={sx} y1={sy} y2={height} stroke={c.onDk3} strokeDasharray="2 4" strokeWidth={1} />
+            <Path d={d} stroke={c.ac} strokeWidth={2} fill="none" />
+            <Circle cx={sx} cy={sy} r={6} fill={c.dk} stroke={c.onDk} strokeWidth={2} />
+            <Circle cx={sx} cy={sy} r={2} fill={c.onDk} />
+          </Svg>
+          <View style={{
+            position: 'absolute', top: Math.max(0, sy - 44), left: Math.min(Math.max(0, sx - 55), w - 110), width: 110,
+            height: 30, borderRadius: radius.chip, backgroundColor: c.sf, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+          }}>
+            <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: c.ac }} />
+            <Text style={{ fontFamily: fonts.regular, fontSize: 12 }}>{format(points[s])}</Text>
+          </View>
+        </View>
+      ) : <View style={{ height }} />}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+        {labels.map((l, i) => (
+          <Pressable key={`${l}${i}`} onPress={() => setSel(i)} hitSlop={8}
+            style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: radius.chip, backgroundColor: i === s ? c.dk2 : 'transparent' }}>
+            <Text variant="meta" color={i === s ? 'onDk' : 'onDk3'}>{l}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * A sideways row of equal-width chips (dates, terms). Swipes on a phone; on the
+ * web, where a mouse can't drag it, the wheel scrolls it sideways and arrows
+ * page through it. The selected chip is kept in view.
+ */
+export function HScroll({ children, itemWidth, gap = 8, selected }: {
+  children: ReactNode; itemWidth: number; gap?: number; selected?: number;
+}) {
+  const ref = useRef<ScrollView>(null);
+  const [x, setX] = useState(0);
+  const [viewW, setViewW] = useState(0);
+  const [contentW, setContentW] = useState(0);
+  const step = itemWidth + gap;
+  const max = Math.max(0, contentW - viewW);
+
+  useEffect(() => {
+    if (selected === undefined || !viewW) return;
+    const left = selected * step;
+    if (left < x || left + itemWidth > x + viewW) ref.current?.scrollTo({ x: Math.max(0, Math.min(max, left - (viewW - itemWidth) / 2)), animated: true });
+    // only when the selection or size changes, not on every scroll
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected, viewW, contentW]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const node = (ref.current as unknown as { getScrollableNode?: () => HTMLElement })?.getScrollableNode?.();
+    if (!node) return;
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      const atEdge = (e.deltaY < 0 && node.scrollLeft <= 0) || (e.deltaY > 0 && node.scrollLeft >= node.scrollWidth - node.clientWidth - 1);
+      if (atEdge) return; // let the page scroll on
+      node.scrollLeft += e.deltaY;
+      e.preventDefault();
+    };
+    node.addEventListener('wheel', onWheel, { passive: false });
+    return () => node.removeEventListener('wheel', onWheel);
+  }, []);
+
+  const page = (dir: 1 | -1) => {
+    const by = Math.max(step, Math.floor(viewW / step) * step - step);
+    ref.current?.scrollTo({ x: Math.max(0, Math.min(max, x + dir * by)), animated: true });
+  };
+
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      {max > 0 ? <IconButton icon={ChevronLeft} label="Scroll back" size={34} onPress={() => page(-1)} /> : null}
+      <ScrollView ref={ref} horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ gap }}
+        scrollEventThrottle={16} onScroll={(e) => setX(e.nativeEvent.contentOffset.x)}
+        onLayout={(e) => setViewW(e.nativeEvent.layout.width)} onContentSizeChange={(w) => setContentW(w)}>
+        {children}
+      </ScrollView>
+      {max > 0 ? <IconButton icon={ChevronRight} label="Scroll forward" size={34} onPress={() => page(1)} /> : null}
+    </View>
+  );
+}

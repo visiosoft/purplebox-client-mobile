@@ -12,23 +12,20 @@ export type Booking = {
   pricing: Pricing;
 };
 
-export const TERMS = [1, 3, 6, 12] as const;
-export type Term = (typeof TERMS)[number];
+/** A term is a whole number of weeks, 4 to 32. */
+export const TERM_WEEKS = Array.from({ length: 29 }, (_, i) => i + 4);
 
 export const bookingApi = {
-  sizes: (startDate: string, months: Term) => api<Size[]>(`${BASE}/sizes?startDate=${startDate}&months=${months}`),
-  reserve: (body: { sizeSqf: number; startDate: string; months: Term }) => api<Booking>(`${BASE}/reserve`, { body }),
+  sizes: (startDate: string, weeks: number) => api<Size[]>(`${BASE}/sizes?startDate=${startDate}&weeks=${weeks}`),
+  reserve: (body: { sizeSqf: number; startDate: string; weeks: number }) => api<Booking>(`${BASE}/reserve`, { body }),
   get: (id: string) => api<Booking>(`${BASE}/${id}`),
   current: () => api<Booking | null>(`${BASE}/current`),
   pay: (id: string) => api<{ url: string }>(`${BASE}/${id}/pay`, { method: 'POST', body: {} }),
+  /** Card form inside the app. Without a Stripe publishable key on the server it falls back to `url` (Stripe's page). */
+  payEmbedded: (id: string) => api<{ clientSecret?: string; publishableKey?: string; url?: string; amount: number; cardFee: number; totalCharged: number }>(
+    `${BASE}/${id}/pay`, { method: 'POST', body: { embedded: true } }),
   sign: (id: string, signerName: string) => api<{ ok: boolean; contractNo: string }>(`${BASE}/${id}/sign`, { body: { signerName, signMode: 'typed' } }),
-  /**
-   * Same sign endpoint, with the finger-drawn signature as a PNG data URL. The
-   * server draws it on the signature line (buildSignedContractPdf, signMode 'draw').
-   */
-  signDrawn: (id: string, signerName: string, signatureDataUrl: string) =>
-    api<{ ok: boolean; contractNo: string }>(`${BASE}/${id}/sign`, { body: { signerName, signMode: 'draw', signatureDataUrl } }),
   contractHref: (id: string) => `${BASE}/${id}/contract.pdf`,
-  updateProfile: (body: { fullName: string; email: string }) =>
+  updateProfile: (body: { fullName: string; email?: string }) =>
     api<{ customer: { id: string; fullName: string; phone: string; email?: string } }>('/customer-auth/profile', { method: 'PATCH', body }),
 };

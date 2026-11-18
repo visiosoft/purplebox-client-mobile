@@ -1,75 +1,102 @@
 import { useEffect } from 'react';
-import { View } from 'react-native';
+import { Platform } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@/api/queryClient';
 import { useFonts } from 'expo-font';
-import {
-  Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold,
-} from '@expo-google-fonts/manrope';
+import { Outfit_300Light, Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold } from '@expo-google-fonts/outfit';
+import { Cairo_300Light, Cairo_400Regular, Cairo_500Medium, Cairo_600SemiBold } from '@expo-google-fonts/cairo';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { useReducedMotion } from 'react-native-reanimated';
-import { ToastHost } from '@/components';
-import { useAuth } from '@/store/auth';
+import { useAuth, needsProfile } from '@/store/auth';
+import { Splash } from '@/components/Splash';
+import { Drawer, EdgeSwipe } from '@/components/Drawer';
+import { useBookingReminders } from '@/hooks/useBookingReminders';
+import { useAppLock } from '@/hooks/useAppLock';
+import { LockScreen } from '@/components/LockScreen';
 import { usePrefs } from '@/store/prefs';
-import { useOnboarding } from '@/store/onboarding';
+import { useRequests } from '@/store/requests';
 import { useTheme } from '@/theme/useTheme';
-import { hasRealName } from '@/lib/format';
+import { setFontLanguage } from '@/theme/tokens';
+import { directionMatches } from '@/i18n';
+import { applyDirection, restartApp } from '@/i18n/rtl';
 
 SplashScreen.preventAutoHideAsync();
-const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 
 function Gate() {
   const { ready, customer } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const { c } = useTheme();
-  const reduced = useReducedMotion();
+  const { c, isDark } = useTheme();
+  const promptSeen = usePrefs((s) => s.profilePromptSeen);
+  const language = usePrefs((s) => s.language);
+  useBookingReminders(!!customer && !needsProfile(customer));
+  useAppLock(!!customer);
 
   useEffect(() => {
     if (!ready) return;
+    // First launch: the very first thing is choosing English or Arabic.
+    if (language === null) { if (segments[0] !== 'language') router.replace('/language' as never); return; }
     const inAuth = segments[0] === '(auth)';
-    if (!customer && !inAuth) router.replace('/(auth)/welcome');
-    else if (customer && inAuth) {
-      // Just signed in: ask for a name if we only have the phone number, then carry on
-      // to wherever the welcome screen pointed.
-      if (!hasRealName(customer.fullName)) router.replace('/name');
-      else if (useOnboarding.getState().intent === 'existing') router.replace('/link-unit');
-      else router.replace('/(tabs)');
-    }
-  }, [ready, customer, segments, router]);
+    const onProfile = inAuth && (segments as string[])[1] === 'profile';
+    if (!customer && !inAuth) router.replace('/(auth)/login');
+    else if (customer && needsProfile(customer) && !onProfile) router.replace('/(auth)/profile');
+    // Signed in with a real name: show "complete your profile" once, then the app. It is optional and skippable.
+    else if (customer && !needsProfile(customer) && inAuth) router.replace(promptSeen ? '/(tabs)' : '/profile-complete?welcome=1');
+    else if (customer && !needsProfile(customer) && !promptSeen && segments[0] === '(tabs)') router.replace('/profile-complete?welcome=1');
+  }, [ready, customer, segments, router, promptSeen, language]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.surface }}>
-      <StatusBar style="dark" />
-      <Stack screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: c.surface },
-        animation: reduced ? 'fade' : 'slide_from_right',
-        animationDuration: 320,
-      }} />
-      <ToastHost />
-    </View>
+    <>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: c.bg }, animation: 'slide_from_right' }}>
+        <Stack.Screen name="language" options={{ animation: 'fade' }} />
+        <Stack.Screen name="estimator" options={{ animation: 'slide_from_bottom' }} />
+        <Stack.Screen name="id-upload" options={{ animation: 'slide_from_bottom' }} />
+      </Stack>
+      {customer && !needsProfile(customer) ? (
+        <>
+          {segments[0] === '(tabs)' ? <EdgeSwipe /> : null}
+          <Drawer />
+        </>
+      ) : null}
+    </>
   );
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({ Manrope_400Regular, Manrope_500Medium, Manrope_600SemiBold, Manrope_700Bold, Manrope_800ExtraBold });
+  const [fontsLoaded] = useFonts({
+    Outfit_300Light, Outfit_400Regular, Outfit_500Medium, Outfit_600SemiBold,
+    Cairo_300Light, Cairo_400Regular, Cairo_500Medium, Cairo_600SemiBold,
+  });
   const ready = useAuth((s) => s.ready);
   const hydrated = usePrefs((s) => s.hydrated);
+  const language = usePrefs((s) => s.language);
+  setFontLanguage(language ?? 'en'); // idempotent: picks Cairo for Arabic before anything renders
+  // The layout direction is fixed per launch on phones: if it doesn't match the chosen language, fix it and reload.
+  const wrongDirection = hydrated && language !== null && !directionMatches(language);
+  useEffect(() => {
+    if (!hydrated || language === null) return;
+    if (applyDirection(language)) restartApp();
+  }, [hydrated, language]);
 
-  useEffect(() => { usePrefs.getState().hydrate(); useAuth.getState().bootstrap(); }, []);
+  useEffect(() => { usePrefs.getState().hydrate(); useRequests.getState().hydrate(); useAuth.getState().bootstrap(); }, []);
   useEffect(() => { if (fontsLoaded && ready && hydrated) SplashScreen.hideAsync(); }, [fontsLoaded, ready, hydrated]);
 
-  if (!fontsLoaded || !ready || !hydrated) return null;
+  if (!fontsLoaded || !ready || !hydrated || (wrongDirection && Platform.OS !== 'web')) return null;
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <QueryClientProvider client={queryClient}>
-          <Gate />
-        </QueryClientProvider>
+        <KeyboardProvider>
+          <QueryClientProvider client={queryClient}>
+            <Gate key={language ?? 'none'} />
+            <LockScreen />
+            <Splash />
+          </QueryClientProvider>
+        </KeyboardProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

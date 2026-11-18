@@ -1,234 +1,394 @@
-import { useState } from 'react';
-import { View } from 'react-native';
+import { useEffect } from 'react';
+import { ActivityIndicator, Alert, Linking, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
-import { Check, ChevronRight, CreditCard, FileText, KeyRound, MessageCircle, PenLine, Receipt, Truck, WifiOff } from 'lucide-react-native';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
-  Banner, BannerText, Button, Card, ErrorState, HomeSkeleton, Icon, InvoicePaySheet, ListRow, NeedsYouCard, Press, QuickActions,
-  RowCard, Screen, ScrollBody, SectionHead, Text, Tile, UnitCard, unitNumbers,
-} from '@/components';
-import { useTheme } from '@/theme/useTheme';
-import { fonts, radius, space } from '@/theme/tokens';
-import { storageApi, type Home, type Invoice } from '@/api/storage';
-import { bookingApi, type Booking } from '@/api/booking';
+  ArrowUpLeft, ArrowUpRight, Bell, CalendarCheck, CalendarClock, CheckCircle2, Clock, CreditCard, FileText, IdCard, LogOut, MapPin, MessageCircle,
+  Receipt, Star,
+} from 'lucide-react-native';
+import { Button, Card, IconButton, MenuButton, Screen, Text } from '@/components/ui';
+import { Gauge, Meter, MetricPills, Page, Row, RowIcon, StatusChip } from '@/components/bits';
+import { BoxArt, Carousel, DealCard, PhotoBanner, PlanCard, SectionTitle, UnitCard, type UnitCardData } from '@/components/home';
+import { RequestRow } from '@/components/service';
+import { Contract, openDocument, storageApi } from '@/api/storage';
+import { isOpen, servicesApi } from '@/api/services';
+import { notificationsApi } from '@/api/notifications';
+import { BillInvoice, useBilling } from '@/hooks/useBilling';
+import { payInApp } from '@/lib/payInApp';
+import { usePaying } from '@/store/paying';
+import { useProfile } from '@/hooks/useProfile';
+import { useBiometricInfo } from '@/hooks/useBiometricInfo';
+import { confirmIdentity } from '@/lib/biometrics';
+import { usePrefs } from '@/store/prefs';
+import { bookingApi } from '@/api/booking';
 import { useAuth } from '@/store/auth';
-import { aed2, clockTime, daysUntil, firstName, greeting, initial, shortDate, todayLine } from '@/lib/format';
-import { openWhatsApp } from '@/lib/contact';
+import { REQUEST_LABEL, useRequests } from '@/store/requests';
+import { UNIT_CATALOG, catalogFor } from '@/lib/unitCatalog';
+import { aed, daysUntil, monthlyRate, shortDate, termProgress } from '@/lib/format';
+import { WHATSAPP } from '@/lib/contact';
+import { tr, useI18n } from '@/i18n';
+import { useDir } from '@/i18n/useDir';
+import { useTheme } from '@/theme/useTheme';
+import { fonts, radius } from '@/theme/tokens';
 
-function Greeting() {
-  const router = useRouter();
+const today = () => new Date().toISOString().slice(0, 10);
+
+/** A section heading with a link on the far side, e.g. "My contract ··· All documents". */
+function SectionHead({ title, link, onPress }: { title: string; link?: string; onPress?: () => void }) {
   const { c } = useTheme();
-  const name = useAuth((s) => s.customer?.fullName);
-  const first = firstName(name);
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[3], marginTop: 6, marginBottom: 18 }}>
-      <View style={{ flex: 1 }}>
-        <Text variant="caption" tone="muted" style={{ fontFamily: fonts.semibold }}>{todayLine()}</Text>
-        <Text variant="title1" accessibilityRole="header">{greeting()}{first ? `, ${first}` : ''}</Text>
-      </View>
-      <Press
-        onPress={() => router.push('/account')}
-        scaleTo={0.92}
-        accessibilityRole="button"
-        accessibilityLabel="Account"
-        style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c.brand500, alignItems: 'center', justifyContent: 'center' }}
-      >
-        <Text style={{ fontFamily: fonts.extrabold, fontSize: 16, lineHeight: 20, color: c.onBrand }}>{initial(name)}</Text>
-      </Press>
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 6 }}>
+      <Text variant="h3">{title}</Text>
+      {link ? (
+        <Pressable onPress={onPress} hitSlop={10} accessibilityRole="link">
+          <Text style={{ fontFamily: fonts.medium, fontSize: 14, color: c.ink, textDecorationLine: 'underline' }}>{link}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
 
-type Needs =
-  | { kind: 'invoice'; tone: 'due' | 'overdue'; invoice: Invoice }
-  | { kind: 'booking'; booking: Booking }
-  | null;
-
-/** Exactly one thing: overdue invoice → due invoice → booking to sign → booking to pay. */
-function pickNeeds(home: Home | undefined, booking: Booking | null | undefined): Needs {
-  const open = [...(home?.outstanding.invoices ?? [])].filter((i) => i.balanceDue > 0)
-    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-  const overdue = open.find((i) => i.status === 'overdue');
-  if (overdue) return { kind: 'invoice', tone: 'overdue', invoice: overdue };
-  if (open[0]) return { kind: 'invoice', tone: 'due', invoice: open[0] };
-  if (booking && booking.state !== 'expired' && booking.state !== 'active') return { kind: 'booking', booking };
-  return null;
-}
-
-const dueLine = (iso: string) => {
-  const d = daysUntil(iso) ?? 0;
-  return d <= 0 ? 'Due today' : d === 1 ? 'Due tomorrow' : `Due in ${d} days`;
-};
-
-function NeedsBlock({ needs, unitLabel, onPay }: { needs: Needs; unitLabel?: string; onPay: (id: string) => void }) {
-  const router = useRouter();
-  if (!needs) {
-    return (
-      <Banner tone="ok" icon={Check}>
-        <BannerText bold="You're all set.">Nothing needs you right now.</BannerText>
-      </Banner>
-    );
-  }
-  if (needs.kind === 'invoice') {
-    const i = needs.invoice;
-    const what = i.subject || `Invoice ${i.invoiceNo}`;
-    if (needs.tone === 'overdue') {
-      const late = -(daysUntil(i.dueDate) ?? 0);
-      return (
-        <NeedsYouCard
-          tone="overdue"
-          overline="Overdue"
-          title={late > 0 ? `Your payment is ${late} ${late === 1 ? 'day' : 'days'} late` : 'Your payment is overdue'}
-          body={`${aed2(i.balanceDue)} for ${what} was due ${shortDate(i.dueDate)}. Pay today, or message us if you need a hand.`}
-          action={`Pay ${aed2(i.balanceDue)} now`}
-          onAction={() => onPay(i.id)}
-        />
-      );
-    }
-    return (
-      <NeedsYouCard
-        tone="due"
-        icon={Receipt}
-        overline={dueLine(i.dueDate)}
-        title={`${what} is ready`}
-        body={[aed2(i.balanceDue), unitLabel ? `Unit ${unitLabel}` : null, `due ${shortDate(i.dueDate)}`].filter(Boolean).join(' · ')}
-        action={`Pay ${aed2(i.balanceDue)}`}
-        onAction={() => onPay(i.id)}
-      />
-    );
-  }
-  const b = needs.booking;
-  const go = (pathname: '/book/sign' | '/book/review' | '/book/status') => router.push({ pathname, params: { id: b.bookingId } });
-  if (b.state === 'ready_to_sign') {
-    return (
-      <NeedsYouCard icon={PenLine} overline="Ready to sign" title="Your agreement is ready"
-        body={`Unit ${b.unit.unitNumber} · ${shortDate(b.unit.startDate)} to ${shortDate(b.unit.endDate)}. Takes about a minute.`}
-        action="Review and sign" onAction={() => go('/book/sign')} />
-    );
-  }
-  if (b.state === 'held') {
-    return (
-      <NeedsYouCard icon={KeyRound} overline="Held for you" title={`Unit ${b.unit.unitNumber} is waiting`}
-        body={`Pay to keep it — the hold ends at ${clockTime(b.holdExpiresAt)}. ${aed2(b.pricing.totalWithFee)} today.`}
-        action="Continue to payment" onAction={() => go('/book/review')} />
-    );
-  }
+/** The agreement as a card: a little page thumbnail, its status, dates and a way to read it. */
+function ContractCard({ contract, onView, onSign }: { contract: Contract; onView: () => void; onSign: () => void }) {
+  const { c } = useTheme();
+  const { t } = useI18n();
   return (
-    <NeedsYouCard icon={FileText} overline="Almost there" title={`We're setting up unit ${b.unit.unitNumber}`}
-      body={b.state === 'needs_review' ? "We received your payment and we're checking one detail. We'll WhatsApp you." : 'Your payment is in. Your agreement will be ready in a moment.'}
-      action="See where it's at" onAction={() => go('/book/status')} />
+    <Card style={{ flexDirection: 'row', gap: 14, padding: 16 }}>
+      <View style={{ width: 64, height: 84, borderRadius: 10, backgroundColor: c.sf2, padding: 9, gap: 5, borderWidth: 1, borderColor: c.ln }}>
+        <View style={{ width: 14, height: 6, borderRadius: 2, backgroundColor: c.ac }} />
+        {[1, 0.8, 1, 0.6].map((w, i) => <View key={i} style={{ width: `${w * 100}%`, height: 3, borderRadius: 2, backgroundColor: c.ln2 }} />)}
+        {contract.signed ? <View style={{ marginTop: 'auto', width: '70%', height: 1, backgroundColor: c.ink3 }} /> : null}
+      </View>
+      <View style={{ flex: 1, gap: 6 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {contract.signed
+            ? <StatusChip tone="ok" icon={CheckCircle2} label={t('Signed')} />
+            : <StatusChip tone="warn" label={t('Awaiting signature')} />}
+          <Text variant="meta">{contract.contractNo}</Text>
+        </View>
+        <Text variant="title">{t('Self-storage agreement')}</Text>
+        <Text variant="meta">
+          {contract.status === 'ended'
+            ? t('From {start} · Ended {end}', { start: shortDate(contract.startDate), end: shortDate(contract.endDate) })
+            : t('From {start} · Ends {end}', { start: shortDate(contract.startDate), end: shortDate(contract.endDate) })}
+        </Text>
+        <Pressable onPress={contract.signed ? onView : onSign} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+          <FileText color={c.ink} size={16} strokeWidth={1.6} />
+          <Text style={{ fontFamily: fonts.medium, fontSize: 14, color: c.ink }}>{contract.signed ? t('View contract') : t('Sign contract')}</Text>
+        </Pressable>
+      </View>
+    </Card>
   );
 }
 
 export default function HomeTab() {
   const router = useRouter();
   const { c } = useTheme();
+  const { t } = useI18n();
+  const { isRTL } = useDir();
+  const OpenIcon = isRTL ? ArrowUpLeft : ArrowUpRight;
+  const customer = useAuth((s) => s.customer);
+  const name = customer?.fullName?.split(' ')[0];
+  const hasName = !!name && !/^[+\d]/.test(name);
+
   const q = useQuery({ queryKey: ['home'], queryFn: storageApi.home });
-  const booking = useQuery({ queryKey: ['booking-current'], queryFn: bookingApi.current });
-  const payments = useQuery({ queryKey: ['payments'], queryFn: storageApi.payments, enabled: !!q.data?.contracts.length });
-  const [payId, setPayId] = useState<string | null>(null);
+  const pending = useQuery({ queryKey: ['booking-current'], queryFn: bookingApi.current });
+  // Live availability and prices; the photos and "what fits" text come from our catalogue.
+  const sizes = useQuery({ queryKey: ['sizes-home'], queryFn: () => bookingApi.sizes(today(), 4), staleTime: 5 * 60_000 });
+  const docs = useQuery({ queryKey: ['documents'], queryFn: storageApi.documents });
+  const bill = useBilling();
+  const services = useQuery({ queryKey: ['services'], queryFn: servicesApi.list });
+  const inbox = useQuery({ queryKey: ['notifications'], queryFn: notificationsApi.list });
+  const requests = useRequests((s) => s.items);
+  const profile = useProfile();
+  // Once, after the welcome checklist: offer Face ID / fingerprint, if this phone has it set up.
+  const bio = useBiometricInfo();
+  const { biometrics, biometricsAsked, profilePromptSeen, setBiometrics, markBiometricsAsked } = usePrefs();
+  useEffect(() => {
+    if (!bio.available || biometrics || biometricsAsked || !profilePromptSeen) return;
+    markBiometricsAsked();
+    Alert.alert(tr('Unlock with {label}?', { label: bio.label }), tr('A quick check keeps your account, ID and payments private if someone else picks up your phone. You can change this in Account.'), [
+      { text: tr('Not now'), style: 'cancel' },
+      { text: tr('Turn on'), onPress: async () => { if (await confirmIdentity(tr('Turn on {label} for PurpleBox', { label: bio.label }))) setBiometrics(true); } },
+    ]);
+  }, [bio.available, bio.label, biometrics, biometricsAsked, profilePromptSeen, markBiometricsAsked, setBiometrics]);
+  const nextStep = profile.items.find((i) => !i.done);
 
-  const refresh = () => { q.refetch(); booking.refetch(); payments.refetch(); };
   const home = q.data;
+  const contract = home?.primaryContract;
+  const unit = contract?.units[0];
+  const due = daysUntil(contract?.nextPaymentDate);
+  const left = daysUntil(contract?.endDate);
+  const owing = home?.outstanding.total ?? 0;
+  const progress = contract ? termProgress(contract) : 0;
+  // Before move-in the term hasn't begun, so count down to it instead of showing 0%.
+  const toStart = daysUntil(contract?.startDate);
+  const beforeMoveIn = toStart !== null && toStart > 0;
 
-  if (q.isLoading) return <Screen><ScrollBody><HomeSkeleton /></ScrollBody></Screen>;
-  if (!home) {
-    return (
-      <Screen>
-        <ScrollBody><Greeting /><ErrorState title="Couldn't load your home" body="This is on us. Try again in a moment, or message us on WhatsApp." onRetry={refresh} error={q.error} /></ScrollBody>
-      </Screen>
-    );
-  }
+  const activeRequests = (services.data ?? []).filter((r) => isOpen(r.status)).slice(0, 2);
+  const openInvoices = [...bill.overdue, ...bill.upcoming].slice(0, 3);
+  const recentPaid = [...bill.payments].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3);
 
-  const contracts = home.contracts;
-  const primary = home.primaryContract ?? contracts[0];
-  const needs = pickNeeds(home, booking.data);
-  const unitLabel = contracts.length === 1 && primary ? unitNumbers(primary) : undefined;
-  const urgent = needs?.kind === 'invoice' ? needs.invoice.id : home.outstanding.invoices.find((i) => i.balanceDue > 0)?.id;
+  // Units to show: what the server says is free right now; if it can't say, the catalogue with "from" prices.
+  const units: UnitCardData[] = sizes.data?.length
+    ? sizes.data.map((s) => { const k = catalogFor(s.sizeSqf); return { sizeSqf: s.sizeSqf, img: k?.img, home: k?.home, fits: k?.fits, popular: k?.popular, price: s.monthlyRate, available: s.available, discountPct: s.discountPct }; })
+    : sizes.isError ? UNIT_CATALOG.map((k) => ({ sizeSqf: k.sizeSqf, img: k.img, home: k.home, fits: k.fits, popular: k.popular, price: k.from })) : [];
+  const discounted = units.filter((u) => (u.discountPct ?? 0) > 0);
+  const bestDiscount = discounted.reduce((m, u) => Math.max(m, u.discountPct ?? 0), 0);
+  const cheapest = units.reduce((m, u) => Math.min(m, u.price), Infinity);
+  const reserve = (sizeSqf?: number) => router.push(sizeSqf ? { pathname: '/book', params: { size: String(sizeSqf) } } : '/book');
+  const toPayments = () => router.navigate('/(tabs)/payments');
 
-  const stale = q.isError ? (
-    <Banner tone="warn" icon={WifiOff} style={{ marginBottom: space[3] }}>
-      <BannerText>Showing info from {clockTime(new Date(q.dataUpdatedAt))}. Pull down to refresh.</BannerText>
-    </Banner>
-  ) : null;
-
-  // New customer: nothing rented yet. The whole screen invites them to book.
-  if (!contracts.length) {
-    return (
-      <Screen>
-        <ScrollBody refreshing={q.isRefetching} onRefresh={refresh}>
-          <Greeting />
-          {stale}
-          {needs ? <View style={{ marginBottom: space[3] }}><NeedsBlock needs={needs} onPay={setPayId} /></View> : null}
-          <Card style={{ padding: 0, overflow: 'hidden' }}>
-            <View style={{ pointerEvents: 'none', height: 170, backgroundColor: c.brand100, overflow: 'hidden' }} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-              <View style={{ pointerEvents: 'none', position: 'absolute', start: 24, bottom: -20, width: 110, height: 110, borderRadius: 22, backgroundColor: c.brand500 }} />
-              <View style={{ pointerEvents: 'none', position: 'absolute', start: 146, bottom: -20, width: 80, height: 150, borderRadius: 22, backgroundColor: c.brand200 }} />
-              <View style={{ pointerEvents: 'none', position: 'absolute', start: 238, bottom: -20, width: 110, height: 70, borderRadius: 22, backgroundColor: c.brand500, opacity: 0.6 }} />
-              <View style={{ pointerEvents: 'none', position: 'absolute', start: 250, top: 24, width: 56, height: 56, borderRadius: 28, backgroundColor: c.surfaceCard }} />
-            </View>
-            <View style={{ padding: space[5] }}>
-              <Text style={{ fontFamily: fonts.extrabold, fontSize: 24, lineHeight: 30 }}>Find your perfect size</Text>
-              <Text tone="muted" style={{ marginTop: 6, marginBottom: space[4] }}>
-                Storage in Al Quoz. Book in a few minutes, pay by card and sign on your phone.
-              </Text>
-              <Button block title="Find my size" onPress={() => router.push('/book')} />
-            </View>
-          </Card>
-          <Card onPress={() => router.push('/link-unit')} style={{ marginTop: space[3], paddingVertical: 6 }} accessibilityLabel="Link a unit I already rent">
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space[3], minHeight: 64 }}>
-              <Tile icon={KeyRound} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontFamily: fonts.semibold, fontSize: 16, lineHeight: 22 }}>Already renting with us?</Text>
-                <Text variant="caption" tone="muted" style={{ fontFamily: fonts.regular }}>Link a unit I already rent, to pay and see bills</Text>
-              </View>
-              <Icon as={ChevronRight} color={c.inkSubtle} flip />
-            </View>
-          </Card>
-        </ScrollBody>
-        <InvoicePaySheet invoiceId={payId} visible={!!payId} onClose={() => setPayId(null)} />
-      </Screen>
-    );
-  }
-
-  const recent = (payments.data ?? []).slice(0, 3);
+  // "Pay now" opens Stripe's checkout straight away. Payment is per invoice, so with one open invoice we pay it;
+  // with several we offer the most urgent one (or the full list on the Payments tab).
+  const recentlyPaid = usePaying((s) => s.paid);
+  const markPaid = usePaying((s) => s.markPaid);
+  const payInvoice = useMutation({
+    mutationFn: (inv: BillInvoice) => payInApp({ ...inv.pay!, label: t('Pay {amount}', { amount: aed(inv.balance) }) }),
+    onSuccess: (r, inv) => { if (r === 'paid') { markPaid(inv.pay!.id); Alert.alert(t('Payment received'), t('Thank you! It will show under History in a moment.')); } },
+    onSettled: () => { bill.refetch(); setTimeout(bill.refetch, 4000); },
+    onError: (e: Error) => Alert.alert(t('Payment'), e.message, [{ text: 'WhatsApp', onPress: () => Linking.openURL(WHATSAPP) }, { text: t('OK') }]),
+  });
+  const payNow = () => {
+    const open = [...bill.overdue, ...bill.upcoming];
+    const payable = open.filter((i) => i.pay && !recentlyPaid[i.pay.id]);
+    if (!payable.length) return toPayments();
+    if (payable.length === 1) return payInvoice.mutate(payable[0]);
+    const first = payable[0];
+    Alert.alert(t('Pay now'), t('You have {n} open invoices. Invoices are paid one at a time.', { n: payable.length }), [
+      { text: t('Cancel'), style: 'cancel' },
+      { text: t('See all'), onPress: toPayments },
+      { text: t('Pay {number} · {amount}', { number: first.number, amount: aed(first.balance) }), onPress: () => payInvoice.mutate(first) },
+    ]);
+  };
+  const toDocuments = () => router.navigate({ pathname: '/(tabs)/storage', params: { tab: 'documents' } });
+  const viewContract = () => {
+    const agreements = docs.data?.agreements ?? [];
+    const doc = agreements.find((d) => contract && d.title.includes(contract.contractNo)) ?? agreements[0];
+    if (doc) openDocument(doc).catch((e) => Alert.alert(t('Contract'), e.message));
+    else toDocuments();
+  };
+  const signContract = async () => {
+    try {
+      const b = await bookingApi.current();
+      if (b && b.state === 'ready_to_sign') router.push({ pathname: '/book/sign', params: { id: b.bookingId } });
+      else router.navigate('/(tabs)/storage');
+    } catch (e: any) { Alert.alert(t('Sign contract'), e.message); }
+  };
 
   return (
     <Screen>
-      <ScrollBody refreshing={q.isRefetching} onRefresh={refresh}>
-        <Greeting />
-        {stale}
-        <NeedsBlock needs={needs} unitLabel={unitLabel} onPay={setPayId} />
+      {/* brand row, like a logo with a status chip beside it */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, marginBottom: 14 }}>
+        <MenuButton />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <BoxArt size={30} />
+          <Text style={{ fontFamily: fonts.light, fontSize: 24, letterSpacing: -0.8, color: c.ink }}>purplebox</Text>
+        </View>
+        <Pressable onPress={() => router.navigate('/(tabs)/storage')} accessibilityRole="button" accessibilityLabel={t('Your unit')}
+          style={{ backgroundColor: c.dk, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, flexDirection: 'row', alignItems: 'center', gap: 5, flexShrink: 1 }}>
+          <Star color={c.ac} size={12} strokeWidth={0} fill={c.ac} />
+          <Text numberOfLines={1} style={{ fontFamily: fonts.medium, fontSize: 12.5, color: '#FFFFFF', flexShrink: 1 }}>
+            {unit ? unit.unitNumber : hasName ? t('Hi, {name}', { name }) : t('Welcome')}
+          </Text>
+        </Pressable>
+        <View style={{ flex: 1 }} />
+        <IconButton icon={Bell} label={inbox.data?.unread ? t('Notifications, {n} unread', { n: inbox.data.unread }) : t('Notifications')}
+          badge={!!inbox.data?.unread} onPress={() => router.push('/notifications')} />
+      </View>
 
-        <View style={{ marginTop: 22, marginBottom: 4 }}>
-          <QuickActions items={[
-            { icon: CreditCard, label: 'Pay', onPress: () => (urgent ? setPayId(urgent) : router.navigate('/(tabs)/billing')) },
-            { icon: FileText, label: 'Contract', onPress: () => router.push('/documents') },
-            { icon: Truck, label: 'Move', onPress: () => openWhatsApp(`Hi PurpleBox, I'd like to arrange a move${unitLabel ? ` for unit ${unitLabel}` : ''}.`) },
-            { icon: MessageCircle, label: 'Chat', onPress: () => router.navigate('/(tabs)/help') },
-          ]} />
+      <Page loading={q.isLoading && !home} error={q.error?.message} refreshing={q.isRefetching || bill.refreshing}
+        onRefresh={() => { q.refetch(); sizes.refetch(); bill.refetch(); services.refetch(); inbox.refetch(); }}>
+        {pending.data ? (
+          <Card variant="accent" style={{ gap: 12 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text variant="h3">{t('Finish your booking')}</Text>
+              <OpenIcon color="#262626" size={20} strokeWidth={1.6} />
+            </View>
+            <Text color="ink2">
+              {pending.data.state === 'ready_to_sign' ? t('Unit {unit} is paid — sign your contract to activate it.', { unit: pending.data.unit.unitNumber })
+                : pending.data.state === 'held' ? t('Unit {unit} is held for you. Complete payment to keep it.', { unit: pending.data.unit.unitNumber })
+                : t('We’re finishing up unit {unit}.', { unit: pending.data.unit.unitNumber })}
+            </Text>
+            <Button title={pending.data.state === 'held' ? t('Continue to payment') : t('Continue')}
+              onPress={() => router.push({ pathname: pending.data!.state === 'held' ? '/book/review' : '/book/status', params: { id: pending.data!.bookingId } })} />
+          </Card>
+        ) : null}
+
+        {owing > 0 ? (
+          <Pressable onPress={payNow} disabled={payInvoice.isPending} accessibilityRole="button" accessibilityLabel={t('Pay now')}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.dk, borderRadius: radius.card, borderCurve: 'continuous', padding: 16 }}>
+            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: c.ac, alignItems: 'center', justifyContent: 'center' }}>
+              <CreditCard color={c.acInk} size={20} strokeWidth={1.6} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text variant="title" color="onDk">{t('{amount} due', { amount: aed(owing) })}</Text>
+              <Text variant="meta" color="onDk2">{due !== null && due >= 0 && due <= 14 ? (due === 1 ? t('Next payment in 1 day') : t('Next payment in {n} days', { n: due })) : t('See your invoices')}</Text>
+            </View>
+            {payInvoice.isPending
+              ? <ActivityIndicator color={c.ac} />
+              : <Text style={{ fontFamily: fonts.medium, color: c.ac }}>{t('Pay now')}</Text>}
+          </Pressable>
+        ) : null}
+
+        {profile.percent !== null && profile.percent < 100 ? (
+          <Pressable onPress={() => router.push('/profile-complete')} accessibilityRole="button" accessibilityLabel={t('Complete your profile, {percent} percent done', { percent: profile.percent })}
+            style={({ pressed }) => ({ backgroundColor: c.acSoft, borderRadius: radius.card, borderCurve: 'continuous', padding: 16, gap: 10, opacity: pressed ? 0.85 : 1 })}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Text style={{ fontFamily: fonts.medium, fontSize: 17, color: c.ink }}>{t('Complete your profile')}</Text>
+              <Text style={{ fontFamily: fonts.medium, fontSize: 17, color: c.ink }}>{profile.percent}%</Text>
+            </View>
+            <Meter value={profile.percent / 100} color={c.br} height={8} />
+            {nextStep ? <Text variant="meta" color="ink2">{t('Next: {title}', { title: nextStep.title })}</Text> : null}
+          </Pressable>
+        ) : null}
+
+        <View style={{ gap: 12 }}>
+          <SectionHead title={t('Active requests')} link={t('All services')} onPress={() => router.navigate('/(tabs)/services')} />
+          {activeRequests.length ? (
+            <Card style={{ paddingVertical: 4 }}>
+              {activeRequests.map((r) => <RequestRow key={r.id} r={r} onPress={() => router.push({ pathname: '/service/[id]', params: { id: r.id } })} />)}
+            </Card>
+          ) : (
+            <Pressable onPress={() => router.navigate('/(tabs)/services')} accessibilityRole="button"
+              style={{ alignItems: 'center', gap: 6, padding: 22, borderRadius: 28, borderWidth: 1.5, borderStyle: 'dashed', borderColor: c.ln2 }}>
+              <CalendarCheck color={c.ink3} size={24} strokeWidth={1.4} />
+              <Text variant="title">{t('Nothing scheduled')}</Text>
+              <Text variant="meta" style={{ textAlign: 'center' }}>{t('Order boxes & labels, book a pickup or have items delivered.')}</Text>
+            </Pressable>
+          )}
         </View>
 
-        {primary ? (
-          <>
-            <SectionHead title={contracts.length > 1 ? 'Your units' : 'Your unit'} action={contracts.length > 1 ? { label: 'See all', onPress: () => router.navigate('/(tabs)/units') } : undefined} />
-            <UnitCard contract={primary} onPress={() => router.push({ pathname: '/unit/[id]', params: { id: primary.id } })} />
-          </>
+        {contract && unit ? (
+          <View>
+            <SectionTitle title={t('Your unit')} />
+            <Card style={{ gap: 18, paddingTop: 24 }}>
+              <View style={{ alignItems: 'center', gap: 2 }}>
+                <Text variant="h2">{t('Unit {unit}', { unit: unit.unitNumber })}</Text>
+                <Text variant="meta">{unit.sizeSqf ? `${t('{size} sq ft', { size: unit.sizeSqf })} · ` : ''}{contract.contractNo}</Text>
+              </View>
+              {beforeMoveIn ? (
+                <Gauge value={0} label={String(toStart)}
+                  caption={toStart === 1 ? t('day until move-in · {date}', { date: shortDate(contract.startDate) }) : t('days until move-in · {date}', { date: shortDate(contract.startDate) })} />
+              ) : (
+                <Gauge value={progress} label={`${Math.round(progress * 100)}%`}
+                  caption={left !== null && left > 0 ? t('of your term · {n} days left', { n: left }) : t('of your term')} />
+              )}
+              <MetricPills items={[
+                { label: t('Monthly'), value: aed(monthlyRate(contract)), tone: 'accent' },
+                { label: t('Next payment'), value: shortDate(contract.nextPaymentDate), tone: 'dark' },
+                { label: t('Check-out'), value: shortDate(contract.endDate), tone: 'hatch' },
+              ]} />
+              {due !== null && due <= 7 && due >= 0 ? <StatusChip tone="warn" label={due === 0 ? t('Due today') : due === 1 ? t('Due in 1 day') : t('Due in {n} days', { n: due })} /> : null}
+            </Card>
+          </View>
         ) : null}
 
-        {recent.length ? (
-          <>
-            <SectionHead title="Recent activity" />
-            <RowCard>
-              {recent.map((p) => (
-                <ListRow key={p.id} icon={Check} tone="ok" title="Payment received" sub={`${aed2(p.amount)} · ${p.contractNo} · ${shortDate(p.paidDate)}`} />
-              ))}
-            </RowCard>
-          </>
+        {contract ? (
+          <View style={{ gap: 12 }}>
+            <SectionHead title={t('My contract')} link={t('All documents')} onPress={toDocuments} />
+            <ContractCard contract={contract} onView={viewContract} onSign={signContract} />
+          </View>
         ) : null}
-        <View style={{ height: radius.sm }} />
-      </ScrollBody>
-      <InvoicePaySheet invoiceId={payId} visible={!!payId} onClose={() => setPayId(null)} onPaid={refresh} />
+
+        {contract || openInvoices.length || recentPaid.length ? (
+          <View style={{ gap: 12 }}>
+            <SectionHead title={t('Payments')} link={t('See all')} onPress={toPayments} />
+            <Card style={{ gap: 4, paddingVertical: 14 }}>
+              <Text variant="overline">{t('Upcoming')}</Text>
+              {openInvoices.map((i) => (
+                <Row key={i.id} leading={<RowIcon icon={FileText} />} title={aed(i.balance)} sub={t('{number} · Due {date}', { number: i.number, date: shortDate(i.dueDate) })}
+                  onPress={toPayments} right={<StatusChip label={i.state === 'overdue' ? t('Overdue') : i.partial ? t('Part paid') : t('Upcoming')} tone={i.state === 'overdue' ? 'err' : 'warn'} />} />
+              ))}
+              {!openInvoices.length && contract?.nextPaymentDate ? (
+                <Row leading={<RowIcon icon={CalendarClock} />} title={aed(monthlyRate(contract))} sub={t('Next payment · {date}', { date: shortDate(contract.nextPaymentDate) })}
+                  right={<StatusChip label={t('Upcoming')} />} />
+              ) : null}
+              {!openInvoices.length && !contract?.nextPaymentDate ? <Text color="ink2" style={{ paddingVertical: 8 }}>{t('Nothing due — you’re all paid up.')}</Text> : null}
+              {bill.outstanding > 0 ? <Button title={t('Pay {amount}', { amount: aed(bill.outstanding) })} variant="accent" icon={CreditCard} onPress={toPayments} style={{ height: 46, marginTop: 4, marginBottom: 6 }} /> : null}
+
+              <View style={{ height: 1, backgroundColor: c.ln, marginVertical: 8 }} />
+              <Text variant="overline">{t('Paid')}</Text>
+              {recentPaid.map((p) => (
+                <Row key={p.id} leading={<RowIcon icon={Receipt} />} title={aed(p.amount)}
+                  sub={[shortDate(p.date), p.method, p.invoiceNumbers].filter(Boolean).join(' · ')}
+                  onPress={toPayments} right={<StatusChip tone="ok" label={t('Paid')} />} />
+              ))}
+              {!recentPaid.length ? <Text color="ink2" style={{ paddingVertical: 8 }}>{t('No payments yet.')}</Text> : null}
+            </Card>
+          </View>
+        ) : null}
+
+        <View style={{ height: 1, backgroundColor: c.ln2, marginHorizontal: -16, marginVertical: 6 }} />
+
+        <View>
+          <SectionTitle title={t('Plan your move')} sub={t('Get ready before move-in day')} />
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <PlanCard art={<BoxArt size={60} />} title={t('Estimate your space')} sub={t('Add your items and we’ll suggest a size')} footer={t('Takes 1 minute')} onPress={() => router.push('/estimator')} />
+            {contract ? (
+              <PlanCard art={<LogOut color={c.ink} size={52} strokeWidth={1.2} />} title={t('Moving out?')} sub={t('Request check-out or extend your stay')} footer={t('Request')} onPress={() => router.push('/checkout')} />
+            ) : (
+              <PlanCard art={<IdCard color={c.ink} size={52} strokeWidth={1.2} />} title={t('Get your ID ready')} sub={t('Upload your Emirates ID or passport to book faster')} footer={t('Takes 2 minutes')} onPress={() => router.push('/id-upload')} />
+            )}
+          </View>
+        </View>
+
+        {units.length ? (
+          <View>
+            <SectionTitle title={t('Available units')} chip={bestDiscount > 0 ? t('Up to {pct}% off', { pct: bestDiscount }) : Number.isFinite(cheapest) ? t('From {amount}', { amount: aed(cheapest) }) : undefined} sub={t('Al Quoz, Dubai · move in from today')} />
+            <Carousel>
+              {units.map((u) => <UnitCard key={u.sizeSqf} u={u} priceText={aed(u.price)} onPress={() => reserve(u.sizeSqf)} />)}
+            </Carousel>
+          </View>
+        ) : sizes.isLoading ? <Text color="ink2">{t('Checking available units…')}</Text> : null}
+
+        <View>
+          <SectionTitle title={t('See today’s deals')} />
+          <Pressable onPress={() => reserve()} accessibilityRole="button"
+            style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 14, borderRadius: radius.card, borderCurve: 'continuous', borderWidth: 1.5, borderColor: c.ln2, backgroundColor: c.sf, padding: 14, opacity: pressed ? 0.8 : 1 })}>
+            <View style={{ width: 48, height: 48, borderRadius: 14, backgroundColor: c.acSoft, alignItems: 'center', justifyContent: 'center' }}>
+              <MapPin color={c.ink} size={22} strokeWidth={1.6} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontFamily: fonts.regular, fontSize: 18, letterSpacing: -0.3, color: c.ink }}>{t('Near you (Al Quoz)')}</Text>
+              <Text variant="meta">{t('{date} · 4 weeks · private unit', { date: shortDate(new Date().toISOString()) })}</Text>
+            </View>
+            <Text variant="h3" color="ink3">{isRTL ? '‹' : '›'}</Text>
+          </Pressable>
+        </View>
+
+        {discounted.length ? (
+          <View>
+            <SectionTitle title={t('Deals for you')} />
+            <Carousel>
+              <DealCard icon={Star} title={t('First-month discount')} sub={t('Up to {pct}% off', { pct: bestDiscount })} cta={t('Claim')} onPress={() => reserve(discounted[0].sizeSqf)} />
+              <DealCard icon={MessageCircle} title={t('Need several units?')} sub={t('Ask us for a custom quote')} cta={t('Chat')} onPress={() => Linking.openURL(WHATSAPP)} />
+            </Carousel>
+          </View>
+        ) : null}
+
+        {discounted.length ? (
+          <View>
+            <SectionTitle title={t('Special deals')} />
+            <Carousel>
+              {discounted.slice(0, 4).map((u) => (
+                <PhotoBanner key={u.sizeSqf} img={u.img} title={t('{pct}% off your first month', { pct: u.discountPct ?? 0 })} sub={t('{size} sq ft unit · {home}', { size: u.sizeSqf, home: u.home ? t(u.home) : t('private unit') })} onPress={() => reserve(u.sizeSqf)} />
+              ))}
+            </Carousel>
+          </View>
+        ) : null}
+
+        {requests.length ? (
+          <Card style={{ gap: 4, paddingVertical: 14 }}>
+            <Text variant="title">{t('Your requests')}</Text>
+            {requests.map((r) => (
+              <Row key={r.id} leading={<RowIcon icon={Clock} />} title={t(REQUEST_LABEL[r.kind])}
+                sub={[t('Unit {unit}', { unit: r.unit }), r.detail, t('sent {date}', { date: shortDate(new Date(r.at).toISOString()) })].filter(Boolean).join(' · ')}
+                right={<StatusChip label={t('Pending')} tone="warn" />} />
+            ))}
+          </Card>
+        ) : null}
+      </Page>
     </Screen>
   );
 }

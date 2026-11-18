@@ -1,83 +1,45 @@
-import type { TextStyle } from 'react-native';
-
-/**
- * PurpleBox design tokens, copied value-for-value from the design system's tokens.json.
- * Light ships first; the dark values are kept ready but not switched on.
- */
+// Soft cream canvas, warm-white cards, charcoal for dark panels and primary
+// actions, sunflower yellow as the one accent. Type is Outfit, mostly light.
 export type Palette = {
-  brand500: string; brand600: string; brand200: string; brand100: string; onBrand: string;
-  ink: string; inkMuted: string; inkSubtle: string;
-  surface: string; surfaceCard: string; surfaceSunken: string;
-  line: string; lineStrong: string; scrim: string;
-  success: string; successTint: string; warning: string; warningTint: string; danger: string; dangerTint: string;
-  whatsapp: string; focus: string;
-  /** CSS box-shadow strings (React Native `boxShadow`); undefined where the theme has none. */
-  shadowCard?: string; shadowSheet?: string; shadowButton?: string;
+  bg: string; bg2: string; sf: string; sf2: string; sf3: string;
+  ink: string; ink2: string; ink3: string;
+  /** primary action / dark panel */ br: string; onBr: string;
+  /** sunflower accent */ ac: string; acSoft: string; acInk: string;
+  dk: string; dk2: string; onDk: string; onDk2: string; onDk3: string;
+  ok: string; okBg: string; warn: string; warnBg: string; err: string; errBg: string;
+  ln: string; ln2: string;
 };
 
 export const light: Palette = {
-  brand500: '#5B2BC9', brand600: '#4A1FAE', brand200: '#E3D7FF', brand100: '#F1EBFF', onBrand: '#FFFFFF',
-  ink: '#1A0B33', inkMuted: '#5E5470', inkSubtle: '#6B6280',
-  surface: '#F8F5EE', surfaceCard: '#FFFFFF', surfaceSunken: '#F1EDE3',
-  line: '#E7E1D6', lineStrong: '#8E8573', scrim: 'rgba(26, 11, 51, 0.40)',
-  success: '#1E7A4C', successTint: '#E3F4EA', warning: '#9A5200', warningTint: '#FDF0DC', danger: '#B42A25', dangerTint: '#FCE6E4',
-  whatsapp: '#13804A', focus: '#5B2BC9',
-  shadowCard: '0px 1px 2px rgba(26,11,51,0.04), 0px 6px 20px rgba(26,11,51,0.05)',
-  shadowSheet: '0px -8px 40px rgba(26,11,51,0.14)',
-  shadowButton: '0px 6px 16px rgba(91,43,201,0.22)',
+  bg: '#F6F3E7', bg2: '#F3ECCB', sf: '#FDFCF7', sf2: '#EFEBDA', sf3: '#E4DEC6',
+  ink: '#262626', ink2: '#5C5A53', ink3: '#6E6B61',
+  br: '#2B2B2B', onBr: '#FFFFFF',
+  ac: '#F8D45C', acSoft: '#FBEDB9', acInk: '#262626',
+  dk: '#2E2E2E', dk2: '#3A3A3A', onDk: '#FFFFFF', onDk2: 'rgba(255,255,255,0.62)', onDk3: 'rgba(255,255,255,0.38)',
+  ok: '#73AD3B', okBg: '#E6F1D6', warn: '#F28E2B', warnBg: '#FCE7D1', err: '#D9534A', errBg: '#F9DEDB',
+  ln: 'rgba(38,38,38,0.07)', ln2: 'rgba(38,38,38,0.14)',
 };
 
 export const dark: Palette = {
-  brand500: '#A88BFF', brand600: '#BBA3FF', brand200: '#3A2A63', brand100: '#2A1F45', onBrand: '#1A0B33',
-  ink: '#F4EFFF', inkMuted: '#B3A8C7', inkSubtle: '#9C91B1',
-  surface: '#120A22', surfaceCard: '#1C1330', surfaceSunken: '#170F29',
-  line: '#2E2447', lineStrong: '#7A6E91', scrim: 'rgba(0, 0, 0, 0.60)',
-  success: '#6FD49A', successTint: '#13291E', warning: '#F2B45A', warningTint: '#2E2210', danger: '#FF8A80', dangerTint: '#33161A',
-  whatsapp: '#13804A', focus: '#A88BFF',
-  shadowCard: undefined,
-  shadowSheet: '0px -8px 40px rgba(0,0,0,0.5)',
-  shadowButton: undefined,
+  bg: '#1B1B1B', bg2: '#22201A', sf: '#262626', sf2: '#303030', sf3: '#3B3B3B',
+  ink: '#F5F3EC', ink2: '#C9C6BC', ink3: '#8D8A81',
+  br: '#F8D45C', onBr: '#262626',
+  ac: '#F8D45C', acSoft: 'rgba(248,212,92,0.16)', acInk: '#262626',
+  dk: '#111111', dk2: '#1F1F1F', onDk: '#FFFFFF', onDk2: 'rgba(255,255,255,0.62)', onDk3: 'rgba(255,255,255,0.38)',
+  ok: '#8CC756', okBg: 'rgba(140,199,86,0.15)', warn: '#F5A04B', warnBg: 'rgba(245,160,75,0.15)',
+  err: '#F07B71', errBg: 'rgba(240,123,113,0.15)',
+  ln: 'rgba(255,255,255,0.08)', ln2: 'rgba(255,255,255,0.16)',
 };
 
-export const palettes = { light, dark } as const;
+export const radius = { chip: 999, input: 22, card: 28, hero: 32, tile: 16, sheet: 32 } as const;
+export const space = { gutter: 16 } as const;
 
-/** space-1 … space-10 */
-export const space = { 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32, 10: 40 } as const;
-export const tapMin = 44;
-export const gutter = space[5];
-
-export const radius = { sm: 10, md: 14, card: 22, sheet: 28, pill: 999 } as const;
-
-export const fonts = {
-  regular: 'Manrope_400Regular',
-  medium: 'Manrope_500Medium',
-  semibold: 'Manrope_600SemiBold',
-  bold: 'Manrope_700Bold',
-  extrabold: 'Manrope_800ExtraBold',
+const FACES = {
+  en: { light: 'Outfit_300Light', regular: 'Outfit_400Regular', medium: 'Outfit_500Medium', semibold: 'Outfit_600SemiBold' },
+  // Outfit has no Arabic letters; Cairo covers Arabic and Latin in the same weights.
+  ar: { light: 'Cairo_300Light', regular: 'Cairo_400Regular', medium: 'Cairo_500Medium', semibold: 'Cairo_600SemiBold' },
 } as const;
 
-const em = (size: number, value: number) => Math.round(size * value * 100) / 100;
-
-/** Text styles from tokens.json. Each Manrope weight is its own font file, so no fontWeight is set. */
-export const textStyles = {
-  display: { fontFamily: fonts.extrabold, fontSize: 34, lineHeight: 40, letterSpacing: em(34, -0.02) },
-  amount: { fontFamily: fonts.extrabold, fontSize: 40, lineHeight: 44, letterSpacing: em(40, -0.02) },
-  title1: { fontFamily: fonts.extrabold, fontSize: 28, lineHeight: 34, letterSpacing: em(28, -0.01) },
-  title2: { fontFamily: fonts.bold, fontSize: 22, lineHeight: 28 },
-  title3: { fontFamily: fonts.bold, fontSize: 18, lineHeight: 24 },
-  bodyLg: { fontFamily: fonts.medium, fontSize: 17, lineHeight: 26 },
-  body: { fontFamily: fonts.regular, fontSize: 16, lineHeight: 24 },
-  label: { fontFamily: fonts.semibold, fontSize: 16, lineHeight: 20 },
-  caption: { fontFamily: fonts.medium, fontSize: 14, lineHeight: 20 },
-  overline: { fontFamily: fonts.bold, fontSize: 12, lineHeight: 16, letterSpacing: em(12, 0.06), textTransform: 'uppercase' },
-} satisfies Record<string, TextStyle>;
-
-export type TextVariant = keyof typeof textStyles;
-
-export const duration = { press: 220, sheet: 380, sheetExit: 260, screen: 320, check: 600, reduced: 120 } as const;
-
-/** cubic-bezier control points */
-export const easing = {
-  spring: [0.34, 1.56, 0.64, 1] as const,
-  out: [0.22, 1, 0.36, 1] as const,
-};
+/** Font family names for the current language. Switched by useLanguageFonts() before the app renders. */
+export const fonts: { light: string; regular: string; medium: string; semibold: string } = { ...FACES.en };
+export const setFontLanguage = (lang: 'en' | 'ar') => { Object.assign(fonts, FACES[lang]); };

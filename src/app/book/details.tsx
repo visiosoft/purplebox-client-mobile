@@ -1,22 +1,46 @@
-import { useRouter } from 'expo-router';
-import { Button, Heading, Screen, ScrollBody, StickyFooter, TopBar, useProfileForm } from '@/components';
+import { useState } from 'react';
+import { Alert, View } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Mail, User } from 'lucide-react-native';
+import { Button, Input, Screen, Text, TopBar } from '@/components/ui';
+import { bookingApi } from '@/api/booking';
+import { useAuth } from '@/store/auth';
+import { useI18n } from '@/i18n';
 
-// The agreement is made out to this name and the receipt goes to this email, so
-// both are needed before a unit is held. (Review asks for them inline; this route
-// stays for links that still point here.)
+// The contract is made out to this name and the receipt goes to this email, so
+// both are needed before a unit is held.
 export default function Details() {
   const router = useRouter();
-  const form = useProfileForm({ strict: true, onSaved: () => router.replace('/book/review') });
+  const { t } = useI18n();
+  const { sizeSqf, start, weeks } = useLocalSearchParams<{ sizeSqf: string; start: string; weeks: string }>();
+  const customer = useAuth((s) => s.customer);
+  const [fullName, setFullName] = useState(/^[+\d\s()-]+$/.test(customer?.fullName ?? '') ? '' : customer?.fullName ?? '');
+  const [email, setEmail] = useState(customer?.email ?? '');
+  const [busy, setBusy] = useState(false);
+  const valid = fullName.trim().split(/\s+/).length >= 2 && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
+
+  const go = async () => {
+    setBusy(true);
+    try {
+      const r = await bookingApi.updateProfile({ fullName: fullName.trim(), email: email.trim() });
+      useAuth.setState({ customer: r.customer });
+      const b = await bookingApi.reserve({ sizeSqf: Number(sizeSqf), startDate: start, weeks: Number(weeks) });
+      router.replace({ pathname: '/book/review', params: { id: b.bookingId } });
+    } catch (e: any) {
+      Alert.alert(t('Could not continue'), e.message);
+    } finally { setBusy(false); }
+  };
+
   return (
-    <Screen keyboard>
-      <TopBar title="Book a unit" />
-      <ScrollBody>
-        <Heading title="Your details" lead="Your agreement is made out in this name, and your receipt goes to this email." />
-        {form.fields}
-      </ScrollBody>
-      <StickyFooter>
-        <Button block title="Continue" loading={form.busy} loadingTitle="Saving" onPress={form.submit} />
-      </StickyFooter>
+    <Screen keyboard style={{ gap: 18 }}>
+      <TopBar title={t('Your details')} />
+      <View style={{ marginTop: -8 }}>
+        <Text color="ink2">{t('Your storage contract will be made out in this name, and your receipt sent to this email.')}</Text>
+      </View>
+      <Input label={t('Full name (as on your Emirates ID)')} icon={User} autoCapitalize="words" value={fullName} onChangeText={setFullName} />
+      <Input label={t('Email')} icon={Mail} keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail}
+        style={{ textAlign: 'left', writingDirection: 'ltr' }} />
+      <Button title={t('Continue')} loading={busy} disabled={!valid} onPress={go} />
     </Screen>
   );
 }

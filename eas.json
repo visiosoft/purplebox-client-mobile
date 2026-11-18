@@ -1,0 +1,14 @@
+{
+  "cli": { "version": ">= 12.0.0", "appVersionSource": "local" },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "env": { "EXPO_PUBLIC_API_URL": "https://api.purplebox.ae/api" },
+      "android": { "buildType": "apk" }
+    },
+    "production": {
+      "env": { "EXPO_PUBLIC_API_URL": "https://api.purplebox.ae/api" },
+      "android": { "buildType": "app-bundle", "credentialsSource": "local" }
+    }
+  }
+}
