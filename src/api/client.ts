@@ -26,6 +26,11 @@ export class ApiError extends Error {
   constructor(public status: number, message: string, public data: any = {}) { super(message); }
 }
 
+// Only a rejected login token signs the customer out. Other 401s (a mistyped
+// link-unit code, for one) are ordinary errors for the screen to show.
+const TOKEN_ERRORS = ['Authentication required', 'Invalid token type', 'Invalid or expired token', 'Phone-only access has ended. Please sign in again.'];
+const isTokenError = (data: any) => TOKEN_ERRORS.includes(data?.error);
+
 export async function api<T = any>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 15000);
@@ -40,7 +45,7 @@ export async function api<T = any>(path: string, opts: { method?: string; body?:
       signal: ctrl.signal,
     });
     const data = await res.json().catch(() => ({}));
-    if (res.status === 401 && token) onUnauthorized?.();
+    if (res.status === 401 && token && isTokenError(data)) onUnauthorized?.();
     if (!res.ok) throw new ApiError(res.status, data?.error ?? `Request failed (${res.status})`, data);
     return data as T;
   } catch (e: any) {
@@ -59,7 +64,7 @@ export async function upload<T = any>(path: string, fields: Record<string, strin
   else form.append('file', file as unknown as Blob);
   const res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers: token ? { Authorization: `Bearer ${token}` } : {}, body: form });
   const data = await res.json().catch(() => ({}));
-  if (res.status === 401 && token) onUnauthorized?.();
+  if (res.status === 401 && token && isTokenError(data)) onUnauthorized?.();
   if (!res.ok) throw new ApiError(res.status, data?.error ?? `Upload failed (${res.status})`, data);
   return data as T;
 }
